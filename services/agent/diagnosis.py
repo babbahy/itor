@@ -60,11 +60,13 @@ def question_intent(question: str | None) -> Question | None:
         return "adapter"
     if "still use" in text or "offline" in text or "itor" in text:
         return "offline"
-    if "internet" in text or "connect" in text or "network" in text:
+    if any(term in text for term in ("internet", "connect", "network", "website", "web", "site", "page", "load",
+                                     "browser", "vpn", "online", "email", "mail", "réseau", "connexion")):
         return "internet"
     if "blocked" in text or "stuck" in text or "can't work" in text or "cannot work" in text:
         return "blocked"
-    if any(term in text for term in ("cpu", "workload", "memory", "disk", "slow", "lag", "performance")):
+    if any(term in text for term in ("cpu", "workload", "memory", "disk", "slow", "lag", "performance", "freeze",
+                                     "frozen", "hang", "crash", "teams", "app", "lent", "bloqu")):
         return "workload"
     return None
 
@@ -196,8 +198,8 @@ class RulesBasedDiagnosisProvider:
             if network:
                 causes = network_causes(network, intent)
         elif question:
-            headline = "Ask about a supported readiness check"
-            explanation = "Try a question about the adapter, DNS, internet, Nexthink, being blocked, or device load."
+            headline = "itor checked your PC and connection"
+            explanation = "Nothing clear explains this problem yet. Try the fixes below; if it still does not work, ask IT."
         return DiagnosisResult(
             status="complete", provider="rules", headline=headline, explanation=explanation,
             observed_facts=evidence, possible_causes=causes, potential_impact=impact, safe_steps=safe_steps,

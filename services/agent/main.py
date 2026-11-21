@@ -3,7 +3,7 @@ import time
 import sqlite3
 from contextlib import asynccontextmanager, suppress
 from hmac import compare_digest
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -472,8 +472,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def support_ticket(body: TicketInput, service: LocalAgent) -> Ticket:
         report = await service.connectivity_status()
         reading = service.readiness(await snapshot(service))
-        tried = [f"{item.title}: {item.detail}"[:200] for item in service.store.list("activity", Activity, limit=40)
-                 if item.kind in {"network_fix", "action_verified", "action_failed", "diagnosis"}][:5]
+        since = utc_now() - timedelta(hours=2)
+        tried = list(dict.fromkeys(  # recent attempts only, short titles, no duplicates
+            item.title[:120] for item in service.store.list("activity", Activity, limit=40)
+            if item.created_at >= since and item.kind in {"network_fix", "action_verified", "action_failed"}))[:5]
         ticket = Ticket(
             employee=service.settings.employee_name, message=body.message, diagnosis=body.diagnosis,
             pc_status=reading.readiness, findings=[item.title for item in reading.findings],
