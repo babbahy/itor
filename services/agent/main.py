@@ -3,6 +3,7 @@ import time
 import sqlite3
 from contextlib import asynccontextmanager, suppress
 from hmac import compare_digest
+from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -11,9 +12,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from .company import CompanySender, CompanyServer, Envelope, TeamReport
 from .config import Settings
 from .connectivity import ConnectivityManager, ConnectivityReport, ServiceState, ServiceStatus
-from .diagnosis import DiagnosisResult, OllamaDiagnosisProvider
+from .incidents import Incident, IncidentLog
+from .network_fixes import FixId, FixRun, NetworkFix, NetworkFixes
+from .diagnosis import ClaudeDiagnosisProvider, DiagnosisResult, OllamaDiagnosisProvider
 from .models import (
     Action, ActionInput, Activity, Approval, AvailableAction, ChatInput, Consent, DemoStop, DeviceSnapshot,
     DiagnoseInput, PreflightSession, Readiness, ReadinessReport,
@@ -59,6 +63,19 @@ class Insights(BaseModel):
     recent_readiness: Readiness | None
 
 
+class IncidentReport(BaseModel):
+    current: Incident | None
+    history: list[Incident]
+
+
+class CompanyStatus(BaseModel):
+    configured: bool
+    employee: str
+    pending: int
+    last_sent_at: datetime | None
+    last_error: str | None
+
+
 class BlockedInput(BaseModel):
     blocked: bool
 
@@ -77,8 +94,9 @@ class Agent:
         self.workload = WorkloadManager(settings.demo_seconds)
         self.telemetry = LocalTelemetryProvider(self.workload)
         self.engine = ReadinessEngine(settings.cpu_threshold, settings.cpu_window)
-        self.diagnosis = OllamaDiagnosisProvider(base_url=settings.ollama_url, model=settings.ollama_model,
+        self.local_ai = OllamaDiagnosisProvider(base_url=settings.ollama_url, model=settings.ollama_model,
                                                 timeout=settings.ollama_timeout)
+        self.diagnosis = ClaudeDiagnosisProvider(self.local_ai, model=settings.claude_model)
         self.connectivity = ConnectivityManager(
             ollama_base_url=settings.ollama_url, ollama_model=settings.ollama_model,
             ollama_loading=lambda: self.diagnosis.is_loading,
@@ -90,6 +108,10 @@ class Agent:
             self.workload, self.telemetry, self.store, self.recheck_action, settings.action_expiry_seconds,
         )
         self.worktime = WorktimeTracker(self.store, settings.employee_name, settings.idle_seconds)
+        self.company_sender = CompanySender(self.store, settings.company_url, settings.company_key)
+        self.company = CompanyServer(self.store, settings.demo_team)
+        self.incidents = IncidentLog(self.store, settings.employee_name, on_closed=self.company_sender.queue_incident)
+        self.fixes = NetworkFixes(check_internet=self.internet_state, on_done=self.fix_done)
         self.demo_lock = asyncio.Lock()
         self.connectivity_report: ConnectivityReport | None = None
         self.history_generation = 0
@@ -107,6 +129,19 @@ class Agent:
             ServiceState.DISCONNECTED, ServiceState.UNREACHABLE,
         }
         return self.engine.evaluate(snapshot, self.telemetry.history(), internet_unavailable)
+
+    async def internet_state(self) -> str:
+        self.connectivity_report = await self.connectivity.inspect(probe=True)
+        report = self.connectivity_report
+        return "cloud down (demo)" if report.simulated_cloud_outage else report.internet.state.value
+
+    def fix_done(self, run: FixRun) -> None:
+        self.incidents.note_fix(f"{run.title}: {run.status}")
+        self.store.event("network_fix", f"{run.title}: {run.status}", run.message or "")
+
+    async def send_to_company(self) -> int:
+        await asyncio.to_thread(self.company_sender.queue_day, self.worktime.day(), self.incidents.history(50))
+        return await self.company_sender.flush()
 
     def lost_time_causes(self) -> list[str]:
         """Tool problems right now that make active time count as lost time."""
@@ -136,14 +171,20 @@ class Agent:
     async def sample_loop(self) -> None:
         cycles = 0
         last_tick = time.monotonic()
+        ticks = 0
         while True:
             await asyncio.sleep(self.settings.sample_interval)
             await asyncio.to_thread(self.telemetry.capture)
             await self.connectivity_status()
+            if self.incidents.update(self.connectivity_report):
+                await self.company_sender.flush()
             now = time.monotonic()
             if now - last_tick >= self.settings.worktime_interval:
                 await self.worktime_tick(now - last_tick)
                 last_tick = now
+                ticks += 1
+                if ticks % 4 == 0:  # about once a minute
+                    await self.send_to_company()
             cycles += 1
             if cycles % 60 == 0:
                 await asyncio.to_thread(self.store.prune)
@@ -160,8 +201,9 @@ class Agent:
         if generation == self.history_generation:
             diagnosis = DiagnosisRecord(session_id=session_id, result=result)
             self.store.put("diagnosis", diagnosis.id, diagnosis)
-            provider = "On-device Ollama" if result.provider == "ollama" else "Local rules"
+            provider = {"claude": "Claude", "ollama": "Local AI"}.get(result.provider, "Simple rules")
             self.store.event("diagnosis", "Device explanation prepared", f"{provider}. {result.headline}")
+            self.incidents.note_help(f"{provider}: {result.headline}")
         return result
 
     def check_demo_idle(self) -> None:
@@ -245,7 +287,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/status")
     async def status(service: LocalAgent) -> ServiceReport:
         return ServiceReport(connectivity=await service.connectivity_status(), demo=service.workload.status(),
-                             model=service.diagnosis.model)
+                             model=service.local_ai.model)
 
     @app.get("/api/device/snapshot")
     async def snapshot(service: LocalAgent) -> DeviceSnapshot:
@@ -384,6 +426,73 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         work = await asyncio.to_thread(service.worktime.fill_demo_day)
         service.store.event("demo_worktime", "Demo day added", "A sample morning was added to today's time.")
         return service.worktime.view(work)
+
+    @app.get("/api/fixes")
+    async def fixes(service: LocalAgent) -> list[NetworkFix]:
+        return service.fixes.available()
+
+    @app.post("/api/fixes/{fix_id}/plan", status_code=201)
+    async def plan_fix(fix_id: FixId, service: LocalAgent) -> FixRun:
+        try:
+            return service.fixes.plan(fix_id)
+        except ValueError as error:
+            raise HTTPException(400, str(error))
+
+    @app.get("/api/fixes/runs/{run_id}")
+    async def get_fix(run_id: str, service: LocalAgent) -> FixRun:
+        try:
+            return service.fixes.get(run_id)
+        except KeyError:
+            raise HTTPException(404, "Fix not found.")
+
+    @app.post("/api/fixes/runs/{run_id}/approve")
+    async def approve_fix(run_id: str, body: Approval, service: LocalAgent) -> FixRun:
+        try:
+            return await service.fixes.approve(run_id, body.approval_token)
+        except KeyError:
+            raise HTTPException(404, "Fix not found.")
+        except PermissionError as error:
+            raise HTTPException(409, str(error))
+
+    @app.post("/api/fixes/runs/{run_id}/cancel")
+    async def cancel_fix(run_id: str, body: Consent, service: LocalAgent) -> FixRun:
+        try:
+            return service.fixes.cancel(run_id, body.approval_token)
+        except KeyError:
+            raise HTTPException(404, "Fix not found.")
+        except PermissionError as error:
+            raise HTTPException(409, str(error))
+
+    @app.get("/api/incidents")
+    async def incidents(service: LocalAgent) -> IncidentReport:
+        return IncidentReport(current=service.incidents.current, history=service.incidents.history())
+
+    @app.get("/api/company/status")
+    async def company_status(service: LocalAgent) -> CompanyStatus:
+        sender = service.company_sender
+        return CompanyStatus(configured=sender.configured, employee=service.settings.employee_name,
+                             pending=sender.pending(), last_sent_at=sender.last_sent_at, last_error=sender.last_error)
+
+    @app.post("/api/company/send")
+    async def company_send(service: LocalAgent) -> CompanyStatus:
+        await service.send_to_company()
+        return await company_status(service)
+
+    @app.get("/api/company/team")
+    async def company_team(service: LocalAgent) -> TeamReport:
+        return service.company.team()
+
+    @app.post("/api/company/reports", status_code=204)
+    async def company_receive(body: Envelope, request: Request,
+                              x_itor_company_key: Annotated[str | None, Header()] = None) -> Response:
+        service: Agent = request.app.state.agent
+        key = service.settings.company_key
+        if not key or x_itor_company_key is None or not compare_digest(key.encode(), x_itor_company_key.encode()):
+            raise HTTPException(401, "A valid company key is required.")
+        if "origin" in request.headers:
+            raise HTTPException(403, "Reports are sent by itor, not by a browser.")
+        service.company.receive(body)
+        return Response(status_code=204)
 
     @app.get("/api/activity")
     async def activity(service: LocalAgent) -> list[Activity]:

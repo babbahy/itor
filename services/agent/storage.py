@@ -70,6 +70,10 @@ class Store:
             ).fetchall()
         return [model.model_validate_json(row[0]) for row in rows]
 
+    def delete(self, bucket: str, key: str) -> None:
+        with self.connect() as db:
+            db.execute("DELETE FROM records WHERE bucket=? AND id=?", (bucket, key))
+
     def prune(self) -> None:
         cutoff = (utc_now() - timedelta(days=self.retention_days)).isoformat()
         with self.connect() as db:
@@ -78,7 +82,7 @@ class Store:
     def clear_history(self) -> None:
         with self.connect() as db:
             db.execute("PRAGMA secure_delete=ON")
-            db.execute("DELETE FROM records WHERE bucket != 'company_report'")
+            db.execute("DELETE FROM records WHERE bucket NOT LIKE 'company_%'")
 
     def event(self, kind: str, title: str, detail: str) -> None:
         activity = Activity(kind=kind, title=title, detail=detail)

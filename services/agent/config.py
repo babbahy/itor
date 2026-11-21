@@ -12,6 +12,7 @@ class Settings:
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3.5:4b"
     ollama_timeout: float = 60.0
+    claude_model: str = "claude-opus-5-5"
     internet_probe_url: str | None = None
     internet_expected_status: int = 204
     connectivity_interval: float = 30.0
@@ -25,6 +26,9 @@ class Settings:
     employee_name: str = "me"
     idle_seconds: float = 120.0
     worktime_interval: float = 15.0
+    company_url: str | None = None
+    company_key: str = ""
+    demo_team: bool = True
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -35,6 +39,7 @@ class Settings:
             ollama_url=getenv("ITOR_OLLAMA_URL", "http://127.0.0.1:11434"),
             ollama_model=getenv("ITOR_OLLAMA_MODEL", "qwen3.5:4b"),
             ollama_timeout=float(getenv("ITOR_OLLAMA_TIMEOUT_SECONDS", "60")),
+            claude_model=getenv("ITOR_CLAUDE_MODEL", "claude-opus-5-5"),
             internet_probe_url=getenv("ITOR_INTERNET_PROBE_URL") or None,
             internet_expected_status=int(getenv("ITOR_INTERNET_EXPECTED_STATUS", "204")),
             connectivity_interval=float(getenv("ITOR_CONNECTIVITY_INTERVAL_SECONDS", "30")),
@@ -47,6 +52,9 @@ class Settings:
             employee_name=getenv("ITOR_EMPLOYEE_NAME") or getpass.getuser(),
             idle_seconds=float(getenv("ITOR_IDLE_SECONDS", "120")),
             worktime_interval=float(getenv("ITOR_WORKTIME_INTERVAL_SECONDS", "15")),
+            company_url=getenv("ITOR_COMPANY_URL") or None,
+            company_key=getenv("ITOR_COMPANY_KEY", ""),
+            demo_team=getenv("ITOR_DEMO_TEAM", "1") not in ("0", "false", "no"),
         )
         if not settings.api_key:
             raise RuntimeError("Set ITOR_AGENT_KEY before starting the device agent.")

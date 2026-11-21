@@ -125,6 +125,9 @@ def launch(production: bool) -> int:
     agent_bind = "127.0.0.1" if agent_host == "localhost" else agent_host
     if agent_host == "localhost":
         values["ITOR_AGENT_URL"] = f"http://127.0.0.1:{agent_port}"
+    # Demo: with no company server set, this PC also plays the company server and sends its data to itself.
+    values.setdefault("ITOR_COMPANY_URL", values["ITOR_AGENT_URL"])
+    values.setdefault("ITOR_COMPANY_KEY", secrets.token_urlsafe(24))
     children: list[subprocess.Popen] = []
 
     def stop(signum: int, _frame: object) -> None:

@@ -1,7 +1,8 @@
-"""Deterministic diagnoses with optional, local-only Ollama explanations."""
+"""Explanations: Claude when online, the local model (Ollama) offline, simple rules as the last backup."""
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Mapping, Sequence
 import json
 import re
@@ -31,7 +32,7 @@ class ModelExplanation(BaseModel):
 
 class DiagnosisResult(ModelExplanation):
     status: Literal["complete", "fallback"]
-    provider: Literal["ollama", "rules"]
+    provider: Literal["claude", "ollama", "rules"]
     model: str | None = None
     observed_facts: list[str] = Field(default_factory=list)
     safe_steps: list[str] = Field(default_factory=list)
@@ -309,6 +310,96 @@ class OllamaDiagnosisProvider:
         return DiagnosisResult(
             **model_answer.model_dump(exclude={"recommended_action_id"}), status="complete",
             provider="ollama", model=self.model, observed_facts=baseline.observed_facts,
+            safe_steps=baseline.safe_steps,
+            recommended_action_id=baseline.recommended_action_id,
+            action_explanation=baseline.action_explanation, verification_advice=baseline.verification_advice,
+        )
+
+
+# Plain JSON schema for Claude's structured output (length limits are checked after, by ModelExplanation).
+CLAUDE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "headline": {"type": "string"},
+        "explanation": {"type": "string"},
+        "possible_causes": {"type": "array", "items": {"type": "string"}},
+        "potential_impact": {"type": "string"},
+        "recommended_action_id": {"anyOf": [{"type": "string", "enum": ["stop_demo_workload"]}, {"type": "null"}]},
+        "uncertainty": {"type": "string"},
+    },
+    "required": ["headline", "explanation", "possible_causes", "potential_impact", "recommended_action_id", "uncertainty"],
+    "additionalProperties": False,
+}
+
+
+class ClaudeDiagnosisProvider:
+    """Uses Claude when internet works and an API key is set. Otherwise hands over to the local model."""
+
+    def __init__(self, local: OllamaDiagnosisProvider, *, model: str = "claude-opus-5-5",
+                 timeout: float = 25.0, client: object | None = None):
+        self.local = local
+        self.model = model
+        self.timeout = timeout
+        self._client = client
+
+    @property
+    def is_loading(self) -> bool:
+        return self.local.is_loading
+
+    @property
+    def enabled(self) -> bool:
+        return self._client is not None or bool(os.getenv("ANTHROPIC_API_KEY"))
+
+    def client(self):
+        if self._client is None:
+            import anthropic
+            self._client = anthropic.AsyncAnthropic(timeout=self.timeout, max_retries=0)
+        return self._client
+
+    @staticmethod
+    def online(network: ConnectivityReport | None) -> bool:
+        if network is None:
+            return True
+        if network.simulated_cloud_outage or network.offline_rescue:
+            return False
+        return network.internet.state not in (ServiceState.DISCONNECTED, ServiceState.UNREACHABLE) and             network.network_interface.state != ServiceState.DISCONNECTED
+
+    async def explain(
+        self, findings: Sequence[Mapping[str, object]], *,
+        question: str | None = None, network: ConnectivityReport | None = None,
+    ) -> DiagnosisResult:
+        if not self.enabled or not self.online(network):
+            return await self.local.explain(findings, question=question, network=network)
+        baseline = await self.local.rules.explain(findings, question=question, network=network)
+        intent = question_intent(question)
+        evidence: dict[str, object] = {"findings": sanitized_findings(findings), "question_topic": intent,
+                                       "question": (question or "")[:400] or None}
+        if network:
+            evidence["network_checks"] = network_observations(network)
+        try:
+            response = await self.client().beta.messages.create(
+                model=self.model,
+                max_tokens=4000,
+                system=system_prompt,
+                messages=[{"role": "user", "content": json.dumps({"observations": evidence})}],
+                output_config={"effort": "low", "format": {"type": "json_schema", "schema": CLAUDE_SCHEMA}},
+                betas=["server-side-fallback-2026-07-01"],
+                fallbacks="default",
+            )
+            if response.stop_reason != "end_turn":  # refusal, max_tokens, ...
+                raise ValueError(f"Claude stopped: {response.stop_reason}")
+            text = next(block.text for block in response.content if block.type == "text")
+            answer = ModelExplanation.model_validate_json(text)
+        except Exception:  # Any problem (no internet, bad key, refusal, bad JSON): use the local model instead.
+            return await self.local.explain(findings, question=question, network=network)
+        if answer.recommended_action_id not in (None, baseline.recommended_action_id):
+            return await self.local.explain(findings, question=question, network=network)
+        prose = (answer.headline, answer.explanation, *answer.possible_causes, answer.potential_impact, answer.uncertainty)
+        if any(unsafe_prose.search(field) for field in prose):
+            return await self.local.explain(findings, question=question, network=network)
+        return DiagnosisResult(
+            **answer.model_dump(exclude={"recommended_action_id"}), status="complete",
+            provider="claude", model=self.model, observed_facts=baseline.observed_facts,
             safe_steps=baseline.safe_steps,
             recommended_action_id=baseline.recommended_action_id,
             action_explanation=baseline.action_explanation, verification_advice=baseline.verification_advice,
