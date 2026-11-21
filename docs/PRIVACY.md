@@ -13,7 +13,7 @@
 - While offline, reports wait in a local outbox and are sent when the connection is back.
 
 ## AI
-- **Claude (online):** receives a short summary of the findings and network checks, and the employee's question. No device names or identifiers.
+- **Gemini (online, free tier):** receives a short summary of the findings and network checks, and the employee's question. No names, device names or identifiers, and never the working time. **On the free tier, Google may use these requests to improve its products.** A real deployment should use a paid tier (not used for training) or only the local AI.
 - **Local AI (Qwen via Ollama):** runs on the PC. Receives the same summary, without the question text.
 - **Simple rules:** run in the app, no AI.
 

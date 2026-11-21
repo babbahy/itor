@@ -10,7 +10,7 @@ make typecheck
 make build
 ```
 
-The Python suite covers telemetry and readiness, the time clock, outage logs, the company outbox and ranking, Claude fallback, action consent, owned-process checks, measured verification, expiration and duplicate prevention. Connectivity tests cover internet, DNS, Ollama and Nexthink as separate services, plus recovery stability and simulation. Sync tests use a test sender to exercise event eligibility, deduplication, retry limits and jitter. Ollama contract tests use a local transport double for structured responses, invalid output, and the rules fallback.
+The Python suite covers telemetry and readiness, the time clock, outage logs, the company outbox and ranking, Gemini fallback, action consent, owned-process checks, measured verification, expiration and duplicate prevention. Connectivity tests cover internet, DNS, Ollama and Nexthink as separate services, plus recovery stability and simulation. Sync tests use a test sender to exercise event eligibility, deduplication, retry limits and jitter. Ollama contract tests use a local transport double for structured responses, invalid output, and the rules fallback.
 
 For a running app, check the real API path and action through the Next.js proxy.
 

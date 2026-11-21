@@ -5,7 +5,7 @@
 itor is a hackathon prototype with two parts:
 
 1. **A time clock.** It counts active time, idle time and time lost because of tools (internet down, PC overloaded, frozen app, "I'm blocked"). The manager sees the same numbers on the company's own server to pay exact hours and rank the team. Nothing goes to Nexthink.
-2. **An offline helper.** When the network drops, a local AI (Qwen through Ollama) still guides the employee, proposes safe fixes that run only after Approve, and writes an outage log that is sent when the connection is back. With internet, Claude answers.
+2. **An offline helper.** When the network drops, a local AI (Qwen through Ollama) still guides the employee, proposes safe fixes that run only after Approve, and writes an outage log that is sent when the connection is back. With internet, Gemini (free tier) answers.
 
 See [PLAN.md](PLAN.md) for the plan and status, and [docs/PRIVACY.md](docs/PRIVACY.md) for what is measured.
 

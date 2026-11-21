@@ -12,7 +12,7 @@ class Settings:
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3.5:4b"
     ollama_timeout: float = 120.0
-    claude_model: str = "claude-opus-5-5"
+    gemini_model: str = "gemini-3.5-flash-lite"
     internet_probe_url: str | None = None
     internet_expected_status: int = 204
     connectivity_interval: float = 30.0
@@ -39,7 +39,7 @@ class Settings:
             ollama_url=getenv("ITOR_OLLAMA_URL", "http://127.0.0.1:11434"),
             ollama_model=getenv("ITOR_OLLAMA_MODEL", "qwen3.5:4b"),
             ollama_timeout=float(getenv("ITOR_OLLAMA_TIMEOUT_SECONDS", "120")),
-            claude_model=getenv("ITOR_CLAUDE_MODEL", "claude-opus-5-5"),
+            gemini_model=getenv("ITOR_GEMINI_MODEL", "gemini-3.5-flash-lite"),
             internet_probe_url=getenv("ITOR_INTERNET_PROBE_URL") or None,
             internet_expected_status=int(getenv("ITOR_INTERNET_EXPECTED_STATUS", "204")),
             connectivity_interval=float(getenv("ITOR_CONNECTIVITY_INTERVAL_SECONDS", "30")),

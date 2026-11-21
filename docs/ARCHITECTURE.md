@@ -20,7 +20,7 @@ flowchart LR
 
 ## Time clock and offline help
 
-`worktime.py` counts active, idle and lost time every 15 seconds and stores one total per day. `incidents.py` opens an outage log when internet or the cloud drops. `company.py` keeps an outbox of daily totals and outage logs and sends them to the company server (`ITOR_COMPANY_URL`) when online; the same program can act as that server and builds the team ranking. Diagnosis goes Claude (online) → local Ollama → rules. Quick fixes (`network_fixes.py`) and the demo workload stop run only after Approve.
+`worktime.py` counts active, idle and lost time every 15 seconds and stores one total per day. `incidents.py` opens an outage log when internet or the cloud drops. `company.py` keeps an outbox of daily totals and outage logs and sends them to the company server (`ITOR_COMPANY_URL`) when online; the same program can act as that server and builds the team ranking. Diagnosis goes Gemini (online, free tier) → local Ollama → rules. Quick fixes (`network_fixes.py`) and the demo workload stop run only after Approve.
 
 ## Provider boundaries
 

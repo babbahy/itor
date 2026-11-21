@@ -61,7 +61,7 @@ export const preflightSchema = readinessSchema.extend({
 });
 export const diagnosisSchema = z.object({
   status: z.string(),
-  provider: z.enum(['claude', 'ollama', 'rules']),
+  provider: z.enum(['gemini', 'ollama', 'rules']),
   model: z.string().nullable(),
   headline: z.string(),
   explanation: z.string(),

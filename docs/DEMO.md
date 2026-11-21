@@ -3,7 +3,7 @@
 ## Before you go on stage
 1. Open PowerShell **as administrator**, run `./scripts/dev.ps1`, open the printed address.
 2. Start Ollama with `qwen3.5:4b` (see README). Ask one question once so the model is warm.
-3. Set `ANTHROPIC_API_KEY` in `.env` if you want to show Claude online.
+3. Set `GEMINI_API_KEY` in `.env` (free key from aistudio.google.com/apikey) to show the online AI.
 4. **Demo controls** → **Reset demo session**, then **Add a demo morning** (so the numbers are not empty).
 
 ## Script
@@ -21,7 +21,7 @@
 
 ## If something goes wrong
 - **Local AI missing or slow:** itor answers with simple rules (labeled). Keep going.
-- **No Claude key / no internet:** answers come from the local AI. That is the point of the demo.
+- **No Gemini key / quota reached / no internet:** answers come from the local AI. That is the point of the demo.
 - **Wi-Fi fix fails:** itor is not running as administrator. Use the DNS fix instead.
 - **Team page empty for you:** click **Send my day now**.
 - **Agent disconnected:** check the launcher output and reopen the printed address.

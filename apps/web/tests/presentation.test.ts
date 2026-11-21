@@ -25,7 +25,7 @@ it('formats working time and reads the time clock', () => {
 });
 
 it('says which AI answered', () => {
-  expect(providerLabel({ ...explanation(true), provider: 'claude' })).toBe('Claude · online');
+  expect(providerLabel({ ...explanation(true), provider: 'gemini' })).toBe('Gemini · online');
   expect(providerLabel(explanation(true))).toBe('Simple rules · works offline');
 });
 

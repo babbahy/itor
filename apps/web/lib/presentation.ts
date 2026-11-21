@@ -110,7 +110,7 @@ export const causeLabel = (cause: string) => causeLabels[cause] ?? cause;
 
 export function providerLabel(diagnosis: Diagnosis | undefined) {
   if (!diagnosis) return undefined;
-  if (diagnosis.provider === 'claude') return 'Claude · online';
+  if (diagnosis.provider === 'gemini') return 'Gemini · online';
   if (diagnosis.provider === 'ollama') return `${diagnosis.model ?? 'Qwen'} · Local AI, works offline`;
   return 'Simple rules · works offline';
 }

@@ -6,7 +6,7 @@ Nexthink challenge: build an AI that removes real work-tech pain **and** that em
 **itor** does two things, linked by one idea: *itor counts your time, and when a tool makes you lose time, it helps you get it back, even offline.*
 
 1. **During the day, a time clock.** itor counts active time (mouse or keyboard used in the last 2 minutes), idle time, and **time lost because of tools** (internet down, PC overloaded, frozen app, or "I'm blocked"). The manager gets these numbers to pay exact hours and to rank the team. Data goes **only to the company's own server**, never to Nexthink.
-2. **When the network drops, a local helper.** The local AI (Qwen through Ollama) guides the employee step by step without internet. itor keeps an outage log and sends it to the company when the connection is back. With internet, Claude answers.
+2. **When the network drops, a local helper.** The local AI (Qwen through Ollama) guides the employee step by step without internet. itor keeps an outage log and sends it to the company when the connection is back. With internet, Gemini (free tier) answers.
 
 - Team: 2 people, 48 hours. **The final demo runs on Windows.**
 - Name: **itor** everywhere. See [AGENTS.md](AGENTS.md).
@@ -18,7 +18,7 @@ Nexthink challenge: build an AI that removes real work-tech pain **and** that em
 **Done**
 - Meetings removed.
 - Time clock: `services/agent/worktime.py`. Routes `/api/worktime/today`, `/week`, `/blocked`, `/api/demo/worktime`.
-- AI chain: Claude when online (`claude-opus-5-5`, effort low, server-side fallbacks) → local Qwen → simple rules. Shown on screen.
+- AI chain: Gemini free tier when online (`gemini-3.5-flash-lite`) → local Qwen → simple rules. Shown on screen.
 - Outage log: `services/agent/incidents.py`. Opens when internet or the cloud drops, closes when it comes back.
 - Two quick fixes with Approve: clear DNS cache, restart Wi-Fi (`services/agent/network_fixes.py`).
 - Company server + ranking: `services/agent/company.py`. Reports wait in an outbox while offline, then are sent. With no company server set, the PC plays the server for the demo. 4 example colleagues.
@@ -28,7 +28,7 @@ Nexthink challenge: build an AI that removes real work-tech pain **and** that em
 **To do**
 - Update Node.js to 22.12+ on the demo PC, then run the web app and `make test` (web tests need Node 22).
 - Install Ollama + `qwen3.5:4b` on the demo PC.
-- Set `ANTHROPIC_API_KEY` in `.env` for Claude.
+- Get a free Gemini key (aistudio.google.com/apikey) and set `GEMINI_API_KEY` in `.env`.
 - Optional: set `ITOR_INTERNET_PROBE_URL` so itor can test real internet (without it, real offline is detected when the Wi-Fi/network card is down; the demo outage button always works).
 - Polish the UI (h32–40), rehearse the demo ([docs/DEMO.md](docs/DEMO.md)), pitch.
 
@@ -42,5 +42,5 @@ Nexthink challenge: build an AI that removes real work-tech pain **and** that em
 - `make test` passes.
 - Leave the mouse 3 minutes → idle goes up. Click "I'm blocked" → lost time goes up. Start the CPU hog → lost time goes up with cause "PC overloaded".
 - Demo controls → simulate cloud outage → "You're offline. itor keeps helping.", local AI answers, outage log opens. Restore → the log is sent and shows on **Team**.
-- With a Claude key and internet → answers say "Claude · online". Without → "Local AI" or "Simple rules", no crash.
+- With a Gemini key and internet → answers say "Gemini · online". Without → "Local AI" or "Simple rules", no crash.
 - **Team** shows this PC ranked with the 4 example colleagues, and My day numbers match "What your manager sees".

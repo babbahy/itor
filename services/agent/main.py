@@ -17,7 +17,7 @@ from .config import Settings
 from .connectivity import ConnectivityManager, ConnectivityReport, ServiceState, ServiceStatus
 from .incidents import Incident, IncidentLog
 from .network_fixes import FixId, FixRun, NetworkFix, NetworkFixes
-from .diagnosis import ClaudeDiagnosisProvider, DiagnosisResult, OllamaDiagnosisProvider
+from .diagnosis import GeminiDiagnosisProvider, DiagnosisResult, OllamaDiagnosisProvider
 from .models import (
     Action, ActionInput, Activity, Approval, AvailableAction, ChatInput, Consent, DemoStop, DeviceSnapshot,
     DiagnoseInput, PreflightSession, Readiness, ReadinessReport,
@@ -96,7 +96,7 @@ class Agent:
         self.engine = ReadinessEngine(settings.cpu_threshold, settings.cpu_window)
         self.local_ai = OllamaDiagnosisProvider(base_url=settings.ollama_url, model=settings.ollama_model,
                                                 timeout=settings.ollama_timeout)
-        self.diagnosis = ClaudeDiagnosisProvider(self.local_ai, model=settings.claude_model)
+        self.diagnosis = GeminiDiagnosisProvider(self.local_ai, model=settings.gemini_model)
         self.connectivity = ConnectivityManager(
             ollama_base_url=settings.ollama_url, ollama_model=settings.ollama_model,
             ollama_loading=lambda: self.diagnosis.is_loading,
@@ -201,7 +201,7 @@ class Agent:
         if generation == self.history_generation:
             diagnosis = DiagnosisRecord(session_id=session_id, result=result)
             self.store.put("diagnosis", diagnosis.id, diagnosis)
-            provider = {"claude": "Claude", "ollama": "Local AI"}.get(result.provider, "Simple rules")
+            provider = {"gemini": "Gemini", "ollama": "Local AI"}.get(result.provider, "Simple rules")
             self.store.event("diagnosis", "Device explanation prepared", f"{provider}. {result.headline}")
             self.incidents.note_help(f"{provider}: {result.headline}")
         return result
