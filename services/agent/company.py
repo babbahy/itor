@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from .incidents import Incident
 from .models import utc_now
 from .storage import Store
+from .support import Ticket
 from .worktime import WorkDay
 
 
@@ -38,9 +39,10 @@ class DayReport(BaseModel):
 
 
 class Envelope(BaseModel):
-    kind: Literal["day", "incident"]
+    kind: Literal["day", "incident", "ticket"]
     day: DayReport | None = None
     incident: Incident | None = None
+    ticket: Ticket | None = None
 
 
 class TeamRow(DayReport):
@@ -55,6 +57,7 @@ class TeamReport(BaseModel):
     lost_by_cause: dict[str, float]
     total_lost_seconds: float
     recent_incidents: list[Incident]
+    tickets: list[Ticket] = Field(default_factory=list)
 
 
 # Fake colleagues for the demo, clearly marked as examples.
@@ -103,6 +106,12 @@ class CompanySender:
     def queue_incident(self, incident: Incident) -> None:
         self.store.put("company_outbox", f"incident:{incident.id}", Envelope(kind="incident", incident=incident))
 
+    def queue_ticket(self, ticket: Ticket) -> None:
+        self.store.put("company_outbox", f"ticket:{ticket.id}", Envelope(kind="ticket", ticket=ticket))
+
+    def is_waiting(self, key: str) -> bool:
+        return self.store.get("company_outbox", key, Envelope) is not None
+
     def pending(self) -> int:
         return len(self.store.list("company_outbox", Envelope, limit=1000))
 
@@ -142,6 +151,8 @@ class CompanyServer:
             self.store.put("company_report", f"{report.employee}|{report.day.isoformat()}", report)
         elif envelope.kind == "incident" and envelope.incident:
             self.store.put("company_incident", envelope.incident.id, envelope.incident)
+        elif envelope.kind == "ticket" and envelope.ticket:
+            self.store.put("company_ticket", envelope.ticket.id, envelope.ticket.model_copy(update={"sent": True}))
 
     def team(self, day: date | None = None) -> TeamReport:
         day = day or utc_now().astimezone().date()
@@ -160,4 +171,5 @@ class CompanyServer:
                 causes[cause] = causes.get(cause, 0) + seconds
         return TeamReport(day=day, rows=rows, lost_by_cause=causes,
                           total_lost_seconds=sum(item.lost_seconds for item in reports),
-                          recent_incidents=self.store.list("company_incident", Incident, limit=10))
+                          recent_incidents=self.store.list("company_incident", Incident, limit=10),
+                          tickets=self.store.list("company_ticket", Ticket, limit=20))

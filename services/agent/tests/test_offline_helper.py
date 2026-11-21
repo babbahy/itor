@@ -125,3 +125,24 @@ async def test_company_routes_need_the_team_key(tmp_path):
         assert len((await client.get("/api/fixes")).json()) == 2
         assert (await client.get("/api/incidents")).json()["current"] is None
         assert (await client.get("/api/company/status")).json()["configured"] is False
+
+
+@pytest.mark.anyio
+async def test_ticket_waits_offline_then_reaches_it(tmp_path):
+    # Company server URL points to a closed port: the ticket must wait in the outbox.
+    config = settings(tmp_path, company_key="team-key", company_url="http://127.0.0.1:9", employee_name="alex")
+    async with local_client(config, HEADERS) as client:
+        await client.post("/api/demo/cloud", json={"enabled": True})
+        ticket = (await client.post("/api/support/ticket", json={"message": "Teams keeps freezing"})).json()
+        assert ticket["sent"] is False and ticket["employee"] == "alex"
+        assert any("demo outage" in item for item in ticket["connection"])
+        assert (await client.get("/api/support/tickets")).json()[0]["id"] == ticket["id"]
+        assert (await client.post("/api/support/ticket", json={"message": ""})).status_code == 422
+
+
+def test_company_server_lists_tickets(tmp_path):
+    from services.agent.support import Ticket
+    server = CompanyServer(Store(tmp_path / "s.sqlite", 7), show_examples=False)
+    server.receive(Envelope(kind="ticket", ticket=Ticket(employee="alex", message="VPN down")))
+    team = server.team()
+    assert team.tickets[0].message == "VPN down" and team.tickets[0].sent

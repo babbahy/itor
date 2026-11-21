@@ -40,6 +40,7 @@ import {
   fixesSchema,
   incidentsSchema,
   teamSchema,
+  ticketSchema,
   workDayViewSchema,
   post,
   preflightSchema,
@@ -74,6 +75,7 @@ import {
 import { AgentUnavailable, NetworkPanel, OfflineBanner } from './network';
 import { EventList, Privacy, Settings } from './secondary';
 import { DayCard, FirstLaunchNotice, ManagerView, OfflineHelp, TeamView } from './worktime';
+import { AskIT, HomeScreen, type HomeStatus } from './home';
 import { Badge, Dialog, Notice, ServiceBadge, Spinner, StateBadge } from './ui';
 
 const subscription = (callback: () => void) => {
@@ -86,6 +88,7 @@ const stopAction = 'stop_demo_workload';
 
 type DialogName =
   | 'fix'
+  | 'askit'
   | 'network'
   | 'demo'
   | 'approval'
@@ -126,6 +129,7 @@ function Dashboard({ children }: { children: ReactNode }) {
   const [fixRun, setFixRun] = useState<FixRun>();
   const [fixError, setFixError] = useState<string>();
   const [fixPick, setFixPick] = useState<Fix>();
+  const [askDiagnosis, setAskDiagnosis] = useState<string>();
   const busyReview = useRef<HTMLElement>(null);
 
   const status = useQuery({
@@ -367,6 +371,20 @@ function Dashboard({ children }: { children: ReactNode }) {
       refresh('activity');
     },
   });
+  const checkProblem = useMutation({
+    mutationFn: async (question: string) => {
+      const result = await preflight.mutateAsync();
+      return question.trim()
+        ? post(diagnosisSchema, 'diagnosis/chat', { question, session_id: result.id })
+        : post(diagnosisSchema, 'diagnose', { session_id: result.id });
+    },
+    onSuccess: () => refresh('activity'),
+  });
+  const sendTicket = useMutation({
+    mutationFn: (message: string) =>
+      post(ticketSchema, 'support/ticket', { message, diagnosis: askDiagnosis ?? null }),
+    onSuccess: () => refresh('activity', 'company'),
+  });
   const clearHistory = useMutation({
     mutationFn: () => api(z.unknown(), 'privacy/history', { method: 'DELETE' }),
     onSuccess: () => {
@@ -457,14 +475,15 @@ function Dashboard({ children }: { children: ReactNode }) {
 
   const currentSection =
     sections.find((section) => section.href === path) ?? sections[0];
-  const today = path === '/';
+  const today = path === '/day';
+  const home = path === '/';
   const snapshot = readiness.data?.snapshot;
   const latestLabel = snapshot
     ? `${down || readiness.isError ? 'Last reading' : 'Updated'} ${timeLabel(snapshot.captured_at)}`
     : 'Waiting for measurements';
   const displayTitle = today ? 'Your day' : currentSection.label;
   const sectionDescription: Record<string, string> = {
-    '/': 'Your working time today, and help when a tool slows you down, even offline.',
+    '/day': 'Your working time today, and help when a tool slows you down, even offline.',
     '/readiness': 'Live readings from your PC, quick checks and safe fixes.',
     '/activity': 'Everything itor noticed and did on this PC.',
     '/team': 'Working time of the team, and the time lost to tools. Inside the company only.',
@@ -505,396 +524,473 @@ function Dashboard({ children }: { children: ReactNode }) {
     </button>
   );
   const demoError = startDemo.error ?? cleanupDemo.error ?? simulateCloud.error;
+  const isOffline = Boolean(
+    connectivity &&
+      (connectivity.offline_rescue ||
+        connectivity.simulated_cloud_outage ||
+        ['disconnected', 'unreachable'].includes(connectivity.internet.state) ||
+        connectivity.network_interface.state === 'disconnected'),
+  );
+  let homeStatus: HomeStatus = {
+    tone: 'green',
+    title: 'Everything looks fine',
+    detail: "Your PC and connection look OK. If something still doesn't work, itor can help.",
+    offline: false,
+  };
+  if (down)
+    homeStatus = { tone: 'muted', title: 'itor is not running', detail: 'Start itor again, or ask IT.', offline: false };
+  else if (isOffline)
+    homeStatus = {
+      tone: 'amber',
+      title: "You're offline",
+      detail: 'itor still works without internet and can help you get back online.',
+      offline: true,
+    };
+  else if (readiness.data && ['attention', 'not_ready'].includes(readiness.data.readiness))
+    homeStatus = {
+      tone: 'amber',
+      title: 'Something is slowing your PC',
+      detail: readiness.data.findings[0]?.title ?? 'itor found something worth fixing.',
+      offline: false,
+    };
+  function openAskIT(diagnosisHeadline?: string) {
+    sendTicket.reset();
+    setAskDiagnosis(diagnosisHeadline);
+    setDialog('askit');
+  }
 
   return (
-    <div className="shell">
+    <div className={home ? 'home-shell' : 'shell'}>
+      {home ? (
+        <HomeScreen
+          status={homeStatus}
+          paidSeconds={worktime.data?.paid_seconds_total}
+          down={down}
+          checking={checkProblem.isPending}
+          diagnosis={checkProblem.data}
+          checkError={checkProblem.isError ? toMessage(checkProblem.error) : undefined}
+          fixes={fixes.data}
+          planning={planFix.isPending ? planFix.variables?.id : undefined}
+          canStopWorkload={Boolean(
+            session && checkProblem.data?.recommended_action_id === stopAction,
+          )}
+          stopping={plan.isPending || isFixing}
+          outcome={actionOutcomes}
+          notice={<FirstLaunchNotice />}
+          onCheck={(question) => checkProblem.mutate(question)}
+          onQuickFix={(fix) => planFix.mutate(fix)}
+          onStopWorkload={() => {
+            if (!session) return;
+            setDialogFinding(actionable(session.findings));
+            plan.mutate(session.id);
+          }}
+          onAskIT={openAskIT}
+          onDemo={openDemo}
+        />
+      ) : (
+        <>
       <a href="#main" className="skip-link">
-        Skip to content
-      </a>
-      <aside
-        className={`sidebar ${menu ? 'menu-open' : ''}`}
-        aria-label="Workspace navigation"
-      >
-        <Link href="/" className="brand" onClick={() => setMenu(false)}>
-          <span className="brand-icon">
-            <Sparkles size={23} fill="currentColor" strokeWidth={1.5} />
-          </span>
-          <span>
-            it<span className="brand-accent">or</span>
-            <small>LOCAL WORKSPACE</small>
-          </span>
-        </Link>
-        <nav className="nav-links" aria-label="Primary">
-          {sections.map(({ href, label, icon: Icon }) => (
-            <Link
-              href={href}
-              key={href}
-              aria-current={path === href ? 'page' : undefined}
-              onClick={() => setMenu(false)}
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-              {path === href && (
-                <ChevronRight
-                  className="nav-current"
-                  size={15}
-                  aria-hidden="true"
-                />
-              )}
-            </Link>
-          ))}
-        </nav>
-        <div className="side-footer">
-          <button
-            className="demo-button"
-            onClick={() => {
-              setMenu(false);
-              openDemo();
-            }}
-          >
-            <FlaskConical size={17} />
-            <span>Demo controls</span>
-            <ChevronRight size={15} />
-          </button>
-          <div className="sidebar-device">
-            <div className="side-device-icon">
-              <ShieldCheck size={19} />
-            </div>
-            <div>
-              <strong>On this device</strong>
-              <p>Privacy-first workspace</p>
-            </div>
-          </div>
-        </div>
-      </aside>
-      <div className="layout">
-        <header className="topbar">
-          <div className="topbar-left">
-            <button
-              className="icon-button menu-button"
-              aria-label={menu ? 'Close menu' : 'Open menu'}
-              aria-expanded={menu}
-              onClick={() => setMenu(!menu)}
-            >
-              <Menu size={21} />
-            </button>
-            <span className="topbar-location">{currentSection.label}</span>
-            <span className="topbar-divider" />
-            <time className="today-date">
-              {now
-                ? dateLabel(now, {
-                    weekday: 'long',
-                    month: 'long',
-                    day: 'numeric',
-                  })
-                : 'Today'}
-            </time>
-          </div>
-          <div className="topbar-right" aria-label="Service status">
-            <span
-              className="header-indicator"
-              title={down ? 'Device agent unreachable' : 'Local device agent'}
-            >
-              <span
-                className={`header-dot ${down ? 'dot-amber' : status.isSuccess ? 'dot-green' : 'dot-muted'}`}
-              />
-              <span className="indicator-text">
-                {down
-                  ? 'Agent unavailable'
-                  : status.isSuccess
-                    ? 'Device connected'
-                    : 'Connecting'}
-              </span>
+          Skip to content
+        </a>
+        <aside
+          className={`sidebar ${menu ? 'menu-open' : ''}`}
+          aria-label="Workspace navigation"
+        >
+          <Link href="/" className="brand" onClick={() => setMenu(false)}>
+            <span className="brand-icon">
+              <Sparkles size={23} fill="currentColor" strokeWidth={1.5} />
             </span>
-            <button
-              className="header-indicator"
-              onClick={() => setDialog('network')}
-              title={connectivity?.ollama.explanation ?? 'Local AI status'}
-            >
-              <Sparkles size={15} />
-              <span className="indicator-text">
-                {!down && connectivity?.ollama.state === 'connected'
-                  ? connectivity?.ollama_loading
-                    ? 'Local AI loading'
-                    : 'Local AI available'
-                  : status.isPending
-                    ? 'Local AI'
-                    : 'Local AI unavailable'}
-              </span>
-            </button>
-            <Link
-              className="header-indicator privacy-indicator"
-              href="/privacy"
-              title="Privacy details"
-            >
-              <ShieldCheck size={15} />
-              <span className="indicator-text">Private by design</span>
-            </Link>
-          </div>
-        </header>
-        <main className="main" id="main">
-          <div className="page-heading">
-            <div>
-              <h1>{displayTitle}</h1>
-              <p>{sectionDescription[path] ?? sectionDescription['/']}</p>
-            </div>
-            {path === '/readiness' && networkButton}
-          </div>
-          <p className="sr-only" aria-live="polite">
-            {announcement}
-          </p>
-          {down ? (
-            <AgentUnavailable />
-          ) : (
-            <OfflineBanner
-              connectivity={connectivity}
-              onOpen={() => setDialog('network')}
-            />
-          )}
-          {!down &&
-            !today &&
-            connectivity?.nexthink.state === 'authentication_error' && (
-              <Notice kind="neutral">
-                Nexthink authentication needs attention. Local services are
-                available.
-              </Notice>
-            )}
-          {preflight.isError && (
-            <Notice kind="error">{toMessage(preflight.error)}</Notice>
-          )}
-          {today && (
-            <>
-              <FirstLaunchNotice />
-              <div className="dashboard-grid dashboard-top">
-                <DayCard
-                  day={worktime.data}
-                  busy={blocked.isPending}
-                  down={down || worktime.isError}
-                  onBlocked={(value) => blocked.mutate(value)}
-                />
-                <ReadinessCard
-                  state={state}
-                  readiness={readiness.data ?? session}
-                  checked={Boolean(session)}
-                  down={down || readiness.isError}
-                  onReview={() => router.push('/readiness')}
-                />
-              </div>
-              <div className="dashboard-grid dashboard-body">
-                <div className="main-stack">
-                  <OfflineHelp
-                    connectivity={down ? undefined : connectivity}
-                    incident={incidents.data?.current}
-                    fixes={fixes.data}
-                    planning={planFix.isPending ? planFix.variables?.id : undefined}
-                    onAsk={() => setDialog('network')}
-                    onFix={(fix) => planFix.mutate(fix)}
+            <span>
+              it<span className="brand-accent">or</span>
+              <small>LOCAL WORKSPACE</small>
+            </span>
+          </Link>
+          <nav className="nav-links" aria-label="Primary">
+            {sections.map(({ href, label, icon: Icon }) => (
+              <Link
+                href={href}
+                key={href}
+                aria-current={path === href ? 'page' : undefined}
+                onClick={() => setMenu(false)}
+              >
+                <Icon size={19} />
+                <span>{label}</span>
+                {path === href && (
+                  <ChevronRight
+                    className="nav-current"
+                    size={15}
+                    aria-hidden="true"
                   />
-                  <section aria-labelledby="metrics-heading">
-                    <div className="row-heading">
-                      <div>
-                        <h2 id="metrics-heading">Device performance</h2>
-                        <p>Live readings from your local agent</p>
-                      </div>
-                      <span className="timestamp">
-                        <span
-                          className={`status-dot ${down || !snapshot ? 'muted-dot' : ''}`}
-                        />
-                        {latestLabel}
-                      </span>
-                    </div>
-                    <Metrics
-                      snapshot={snapshot}
-                      history={history.data}
-                      stale={down || readiness.isError}
-                      loading={readiness.isPending && !down}
+                )}
+              </Link>
+            ))}
+          </nav>
+          <div className="side-footer">
+            <button
+              className="demo-button"
+              onClick={() => {
+                setMenu(false);
+                openDemo();
+              }}
+            >
+              <FlaskConical size={17} />
+              <span>Demo controls</span>
+              <ChevronRight size={15} />
+            </button>
+            <div className="sidebar-device">
+              <div className="side-device-icon">
+                <ShieldCheck size={19} />
+              </div>
+              <div>
+                <strong>On this device</strong>
+                <p>Privacy-first workspace</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+        <div className="layout">
+          <header className="topbar">
+            <div className="topbar-left">
+              <button
+                className="icon-button menu-button"
+                aria-label={menu ? 'Close menu' : 'Open menu'}
+                aria-expanded={menu}
+                onClick={() => setMenu(!menu)}
+              >
+                <Menu size={21} />
+              </button>
+              <span className="topbar-location">{currentSection.label}</span>
+              <span className="topbar-divider" />
+              <time className="today-date">
+                {now
+                  ? dateLabel(now, {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : 'Today'}
+              </time>
+            </div>
+            <div className="topbar-right" aria-label="Service status">
+              <span
+                className="header-indicator"
+                title={down ? 'Device agent unreachable' : 'Local device agent'}
+              >
+                <span
+                  className={`header-dot ${down ? 'dot-amber' : status.isSuccess ? 'dot-green' : 'dot-muted'}`}
+                />
+                <span className="indicator-text">
+                  {down
+                    ? 'Agent unavailable'
+                    : status.isSuccess
+                      ? 'Device connected'
+                      : 'Connecting'}
+                </span>
+              </span>
+              <button
+                className="header-indicator"
+                onClick={() => setDialog('network')}
+                title={connectivity?.ollama.explanation ?? 'Local AI status'}
+              >
+                <Sparkles size={15} />
+                <span className="indicator-text">
+                  {!down && connectivity?.ollama.state === 'connected'
+                    ? connectivity?.ollama_loading
+                      ? 'Local AI loading'
+                      : 'Local AI available'
+                    : status.isPending
+                      ? 'Local AI'
+                      : 'Local AI unavailable'}
+                </span>
+              </button>
+              <Link
+                className="header-indicator privacy-indicator"
+                href="/privacy"
+                title="Privacy details"
+              >
+                <ShieldCheck size={15} />
+                <span className="indicator-text">Private by design</span>
+              </Link>
+            </div>
+          </header>
+          <main className="main" id="main">
+            <div className="page-heading">
+              <div>
+                <h1>{displayTitle}</h1>
+                <p>{sectionDescription[path] ?? ''}</p>
+              </div>
+              {path === '/readiness' && networkButton}
+            </div>
+            <p className="sr-only" aria-live="polite">
+              {announcement}
+            </p>
+            {down ? (
+              <AgentUnavailable />
+            ) : (
+              <OfflineBanner
+                connectivity={connectivity}
+                onOpen={() => setDialog('network')}
+              />
+            )}
+            {!down &&
+              !today &&
+              connectivity?.nexthink.state === 'authentication_error' && (
+                <Notice kind="neutral">
+                  Nexthink authentication needs attention. Local services are
+                  available.
+                </Notice>
+              )}
+            {preflight.isError && (
+              <Notice kind="error">{toMessage(preflight.error)}</Notice>
+            )}
+            {today && (
+              <>
+                <FirstLaunchNotice />
+                <div className="dashboard-grid dashboard-top">
+                  <DayCard
+                    day={worktime.data}
+                    busy={blocked.isPending}
+                    down={down || worktime.isError}
+                    onBlocked={(value) => blocked.mutate(value)}
+                  />
+                  <ReadinessCard
+                    state={state}
+                    readiness={readiness.data ?? session}
+                    checked={Boolean(session)}
+                    down={down || readiness.isError}
+                    onReview={() => router.push('/readiness')}
+                  />
+                </div>
+                <div className="dashboard-grid dashboard-body">
+                  <div className="main-stack">
+                    <OfflineHelp
+                      connectivity={down ? undefined : connectivity}
+                      incident={incidents.data?.current}
+                      fixes={fixes.data}
+                      planning={planFix.isPending ? planFix.variables?.id : undefined}
+                      onAsk={() => setDialog('network')}
+                      onFix={(fix) => planFix.mutate(fix)}
                     />
-                    {snapshot?.workload.active && (
-                      <Workload
+                    <section aria-labelledby="metrics-heading">
+                      <div className="row-heading">
+                        <div>
+                          <h2 id="metrics-heading">Device performance</h2>
+                          <p>Live readings from your local agent</p>
+                        </div>
+                        <span className="timestamp">
+                          <span
+                            className={`status-dot ${down || !snapshot ? 'muted-dot' : ''}`}
+                          />
+                          {latestLabel}
+                        </span>
+                      </div>
+                      <Metrics
                         snapshot={snapshot}
                         history={history.data}
                         stale={down || readiness.isError}
+                        loading={readiness.isPending && !down}
                       />
+                      {snapshot?.workload.active && (
+                        <Workload
+                          snapshot={snapshot}
+                          history={history.data}
+                          stale={down || readiness.isError}
+                        />
+                      )}
+                    </section>
+                    <section
+                      ref={busyReview}
+                      className="stack"
+                      aria-label="PC check results"
+                    >
+                      {diagnostic}
+                      {actionOutcomes}
+                    </section>
+                    {(events.data?.length ?? 0) > 0 && (
+                      <article className="card detail-card">
+                        <div className="panel-heading">
+                          <h2>Recent activity</h2>
+                          <Link className="text-button" href="/activity">
+                            View activity
+                          </Link>
+                        </div>
+                        <EventList events={events.data} limit={3} stale={down} />
+                      </article>
                     )}
-                  </section>
-                  <section
-                    ref={busyReview}
-                    className="stack"
-                    aria-label="PC check results"
-                  >
-                    {diagnostic}
-                    {actionOutcomes}
-                  </section>
-                  {(events.data?.length ?? 0) > 0 && (
-                    <article className="card detail-card">
-                      <div className="panel-heading">
-                        <h2>Recent activity</h2>
-                        <Link className="text-button" href="/activity">
-                          View activity
-                        </Link>
-                      </div>
-                      <EventList events={events.data} limit={3} stale={down} />
-                    </article>
-                  )}
-                </div>
-                <div className="side-stack">
-                  <ManagerView day={worktime.data} company={company.data} />
-                  <article className="card connectivity-card">
-                    <div className="panel-heading">
-                      <h2>Connectivity</h2>
-                      <button
-                        className="icon-button"
-                        aria-label="Investigate connection"
-                        title="Investigate connection"
-                        onClick={() => setDialog('network')}
-                      >
-                        <CircleHelp size={18} />
-                      </button>
-                    </div>
-                    <dl>
-                      <div>
-                        <dt>Device agent</dt>
-                        <dd>
-                          {down ? (
-                            <Badge tone="amber" dot>
-                              Unreachable
-                            </Badge>
-                          ) : (
-                            <ServiceBadge service={connectivity?.agent} />
-                          )}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Local AI</dt>
-                        <dd>
-                          <ServiceBadge
-                            service={down ? undefined : connectivity?.ollama}
-                            connectedLabel="Available"
-                          />
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Internet</dt>
-                        <dd>
-                          <ServiceBadge
-                            service={down ? undefined : connectivity?.internet}
-                          />
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Nexthink</dt>
-                        <dd>
-                          <ServiceBadge
-                            service={down ? undefined : connectivity?.nexthink}
-                          />
-                        </dd>
-                      </div>
-                    </dl>
-                  </article>
-                </div>
-              </div>
-            </>
-          )}
-          {path === '/readiness' && (
-            <div className="stack subpage">
-              <section aria-labelledby="device-current">
-                <div className="row-heading">
-                  <div>
-                    <h2 id="device-current">Device performance</h2>
-                    <p>{latestLabel}</p>
                   </div>
-                  <StateBadge state={state} />
+                  <div className="side-stack">
+                    <ManagerView day={worktime.data} company={company.data} />
+                    <article className="card connectivity-card">
+                      <div className="panel-heading">
+                        <h2>Connectivity</h2>
+                        <button
+                          className="icon-button"
+                          aria-label="Investigate connection"
+                          title="Investigate connection"
+                          onClick={() => setDialog('network')}
+                        >
+                          <CircleHelp size={18} />
+                        </button>
+                      </div>
+                      <dl>
+                        <div>
+                          <dt>Device agent</dt>
+                          <dd>
+                            {down ? (
+                              <Badge tone="amber" dot>
+                                Unreachable
+                              </Badge>
+                            ) : (
+                              <ServiceBadge service={connectivity?.agent} />
+                            )}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Local AI</dt>
+                          <dd>
+                            <ServiceBadge
+                              service={down ? undefined : connectivity?.ollama}
+                              connectedLabel="Available"
+                            />
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Internet</dt>
+                          <dd>
+                            <ServiceBadge
+                              service={down ? undefined : connectivity?.internet}
+                            />
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Nexthink</dt>
+                          <dd>
+                            <ServiceBadge
+                              service={down ? undefined : connectivity?.nexthink}
+                            />
+                          </dd>
+                        </div>
+                      </dl>
+                    </article>
+                  </div>
                 </div>
-                <Metrics
-                  snapshot={snapshot}
-                  history={history.data}
-                  stale={down || readiness.isError}
-                  loading={readiness.isPending && !down}
+              </>
+            )}
+            {path === '/readiness' && (
+              <div className="stack subpage">
+                <section aria-labelledby="device-current">
+                  <div className="row-heading">
+                    <div>
+                      <h2 id="device-current">Device performance</h2>
+                      <p>{latestLabel}</p>
+                    </div>
+                    <StateBadge state={state} />
+                  </div>
+                  <Metrics
+                    snapshot={snapshot}
+                    history={history.data}
+                    stale={down || readiness.isError}
+                    loading={readiness.isPending && !down}
+                  />
+                  <Workload
+                    snapshot={snapshot}
+                    history={history.data}
+                    stale={down || readiness.isError}
+                  />
+                </section>
+                {diagnostic}
+                {actionOutcomes}
+                <OfflineHelp
+                  always
+                  connectivity={down ? undefined : connectivity}
+                  incident={incidents.data?.current}
+                  fixes={fixes.data}
+                  planning={planFix.isPending ? planFix.variables?.id : undefined}
+                  onAsk={() => setDialog('network')}
+                  onFix={(fix) => planFix.mutate(fix)}
                 />
-                <Workload
-                  snapshot={snapshot}
-                  history={history.data}
-                  stale={down || readiness.isError}
+                <article className="card detail-card">
+                  <div className="panel-heading">
+                    <h2>PC checks</h2>
+                    <button
+                      className="button secondary"
+                      disabled={down || preflight.isPending}
+                      onClick={runCheck}
+                    >
+                      {preflight.isPending ? (
+                        <Spinner />
+                      ) : (
+                        <ActivityIcon size={17} />
+                      )}
+                      Check my PC
+                    </button>
+                  </div>
+                  <Checks
+                    readiness={readiness.data ?? session}
+                    stale={down || readiness.isError}
+                  />
+                </article>
+              </div>
+            )}
+            {path === '/activity' && (
+              <div className="subpage">
+                <article className="card detail-card">
+                  <EventList events={events.data} stale={down} />
+                </article>
+              </div>
+            )}
+            {path === '/team' && (
+              <div className="stack subpage">
+                <TeamView
+                  team={team.data}
+                  company={company.data}
+                  sending={sendCompany.isPending}
+                  onSend={() => sendCompany.mutate()}
+                  stale={down || team.isError}
                 />
-              </section>
-              {diagnostic}
-              {actionOutcomes}
-              <OfflineHelp
-                always
-                connectivity={down ? undefined : connectivity}
-                incident={incidents.data?.current}
-                fixes={fixes.data}
-                planning={planFix.isPending ? planFix.variables?.id : undefined}
-                onAsk={() => setDialog('network')}
-                onFix={(fix) => planFix.mutate(fix)}
-              />
-              <article className="card detail-card">
-                <div className="panel-heading">
-                  <h2>PC checks</h2>
-                  <button
-                    className="button secondary"
-                    disabled={down || preflight.isPending}
-                    onClick={runCheck}
-                  >
-                    {preflight.isPending ? (
-                      <Spinner />
-                    ) : (
-                      <ActivityIcon size={17} />
-                    )}
-                    Check my PC
-                  </button>
-                </div>
-                <Checks
-                  readiness={readiness.data ?? session}
-                  stale={down || readiness.isError}
+              </div>
+            )}
+            {path === '/privacy' && (
+              <div className="stack subpage">
+                <Privacy
+                  privacy={privacy.data}
+                  connectivity={connectivity}
+                  onClear={() => {
+                    clearHistory.reset();
+                    setDialog('history');
+                  }}
+                  down={down || isFixing}
                 />
-              </article>
-            </div>
-          )}
-          {path === '/activity' && (
-            <div className="subpage">
-              <article className="card detail-card">
-                <EventList events={events.data} stale={down} />
-              </article>
-            </div>
-          )}
-          {path === '/team' && (
-            <div className="stack subpage">
-              <TeamView
-                team={team.data}
-                company={company.data}
-                sending={sendCompany.isPending}
-                onSend={() => sendCompany.mutate()}
-                stale={down || team.isError}
-              />
-            </div>
-          )}
-          {path === '/privacy' && (
-            <div className="stack subpage">
-              <Privacy
-                privacy={privacy.data}
-                connectivity={connectivity}
-                onClear={() => {
-                  clearHistory.reset();
-                  setDialog('history');
-                }}
-                down={down || isFixing}
-              />
-            </div>
-          )}
-          {path === '/settings' && (
-            <div className="stack subpage">
-              <Settings
-                connectivity={connectivity}
-                model={status.data?.model}
-                onNetwork={() => setDialog('network')}
-                onDemo={openDemo}
-              />
-            </div>
-          )}
-          {children}
-        </main>
-      </div>
+              </div>
+            )}
+            {path === '/settings' && (
+              <div className="stack subpage">
+                <Settings
+                  connectivity={connectivity}
+                  model={status.data?.model}
+                  onNetwork={() => setDialog('network')}
+                  onDemo={openDemo}
+                />
+              </div>
+            )}
+            {children}
+          </main>
+        </div>
+        </>
+      )}
+      {dialog === 'askit' && (
+        <Dialog title="Ask IT" onDismiss={dismiss}>
+          <AskIT
+            diagnosis={askDiagnosis}
+            sending={sendTicket.isPending}
+            error={sendTicket.isError ? toMessage(sendTicket.error) : undefined}
+            ticket={sendTicket.data}
+            offline={isOffline}
+            onSend={(message) => sendTicket.mutate(message)}
+            onClose={dismiss}
+          />
+        </Dialog>
+      )}
       {dialog === 'fix' && fixRun && (
         <Dialog title="Approve a quick fix" onDismiss={dismiss}>
           <div className="approval-body">

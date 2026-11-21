@@ -1,6 +1,7 @@
 import {
   Activity,
   Clock,
+  House,
   Gauge,
   Settings,
   ShieldCheck,
@@ -9,7 +10,8 @@ import {
 import type { Action, Diagnosis, Readiness, ServiceStatus } from './api';
 
 export const sections = [
-  { href: '/', label: 'My day', icon: Clock },
+  { href: '/', label: 'Home', icon: House },
+  { href: '/day', label: 'My day', icon: Clock },
   { href: '/readiness', label: 'My PC', icon: Gauge },
   { href: '/activity', label: 'Log', icon: Activity },
   { href: '/team', label: 'Team', icon: Users },

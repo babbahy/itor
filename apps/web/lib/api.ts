@@ -249,12 +249,27 @@ export const teamRowSchema = z.object({
   active_share: z.number(),
   received_at: timestamp.nullish(),
 });
+export const ticketSchema = z.object({
+  id: z.string(),
+  employee: z.string(),
+  created_at: timestamp,
+  message: z.string(),
+  diagnosis: z.string().nullish(),
+  pc_status: z.string(),
+  findings: z.array(z.string()),
+  connection: z.array(z.string()),
+  tried: z.array(z.string()),
+  outage_id: z.string().nullish(),
+  sent: z.boolean(),
+});
+export const ticketsSchema = z.array(ticketSchema);
 export const teamSchema = z.object({
   day: z.string(),
   rows: z.array(teamRowSchema),
   lost_by_cause: secondsBy,
   total_lost_seconds: seconds,
   recent_incidents: z.array(incidentSchema),
+  tickets: z.array(ticketSchema).default([]),
 });
 export const companyStatusSchema = z.object({
   configured: z.boolean(),
@@ -290,6 +305,7 @@ export type Incident = z.infer<typeof incidentSchema>;
 export type Team = z.infer<typeof teamSchema>;
 export type CompanyStatus = z.infer<typeof companyStatusSchema>;
 export type Fix = z.infer<typeof fixSchema>;
+export type Ticket = z.infer<typeof ticketSchema>;
 export type FixRun = z.infer<typeof fixRunSchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;
 export type Finding = z.infer<typeof findingSchema>;

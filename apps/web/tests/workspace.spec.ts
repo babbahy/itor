@@ -61,6 +61,23 @@ async function stubAgent(page: Page, options: Scenario = {}) {
     if (endpoint === 'company/status') return route.fulfill({ json: companyStatus });
     if (endpoint === 'company/team') return route.fulfill({ json: team() });
     if (endpoint === 'fixes') return route.fulfill({ json: fixes });
+    if (endpoint === 'support/ticket')
+      return route.fulfill({
+        status: 201,
+        json: {
+          id: 'ticket',
+          employee: 'alex',
+          created_at: new Date().toISOString(),
+          message: route.request().postDataJSON().message,
+          diagnosis: null,
+          pc_status: 'ready',
+          findings: [],
+          connection: ['Connection looks normal'],
+          tried: [],
+          outage_id: null,
+          sent: !options.offline,
+        },
+      });
     if (endpoint === 'incidents')
       return route.fulfill({ json: { current: null, history: [] } });
     if (endpoint === 'fixes/flush_dns/plan')
@@ -125,7 +142,7 @@ async function stubAgent(page: Page, options: Scenario = {}) {
 
 test('shows my working time and exactly what the manager sees', async ({ page }) => {
   await stubAgent(page, { ollama: true });
-  await page.goto('/');
+  await page.goto('/day');
   await expect(page.getByRole('heading', { name: 'Your time today' })).toBeVisible();
   await expect(page.getByText('Active now', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'What your manager sees' })).toBeVisible();
@@ -135,7 +152,7 @@ test('shows my working time and exactly what the manager sees', async ({ page })
 
 test('marks time as blocked', async ({ page }) => {
   await stubAgent(page);
-  await page.goto('/');
+  await page.goto('/day');
   await page.getByRole('button', { name: "I'm blocked" }).click();
   await expect(page.getByText('Losing time to a tool', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: "I'm not blocked anymore" })).toBeVisible();
@@ -145,7 +162,7 @@ test('shows unknown readiness and handles a disconnected backend', async ({
   page,
 }) => {
   await stubAgent(page, { state: 'unknown' });
-  await page.goto('/');
+  await page.goto('/day');
   await expect(
     page.getByText('Checks incomplete', { exact: true }),
   ).toBeVisible();
@@ -164,7 +181,7 @@ test('requires approval and displays verified before and after measurements', as
     state: 'attention',
     ollama: false,
   });
-  await page.goto('/');
+  await page.goto('/day');
   await expect(
     page.getByText('Attention needed', { exact: true }),
   ).toBeVisible();
@@ -194,7 +211,7 @@ test('keeps action failure visible and never reports it as verified', async ({
   page,
 }) => {
   await stubAgent(page, { state: 'attention', failAction: true });
-  await page.goto('/');
+  await page.goto('/day');
   await page.getByRole('button', { name: 'Fix this for me' }).click();
   await page.getByRole('button', { name: 'Approve and stop workload' }).click();
   await expect(page.getByText('Action failed', { exact: true })).toBeVisible();
@@ -205,7 +222,7 @@ test('keeps action failure visible and never reports it as verified', async ({
 
 test('offers local help and quick fixes when offline', async ({ page }) => {
   const { isFixApproved } = await stubAgent(page, { offline: true, ollama: true });
-  await page.goto('/');
+  await page.goto('/day');
   await expect(
     page.getByRole('heading', { name: "You're offline. itor keeps helping." }),
   ).toBeVisible();
@@ -237,7 +254,7 @@ test('simulates a cloud outage without disabling local services', async ({
   page,
 }) => {
   await stubAgent(page, { ollama: true });
-  await page.goto('/');
+  await page.goto('/day');
   await page.getByRole('button', { name: 'Demo controls' }).click();
   const dialog = page.getByRole('dialog', { name: 'Demo controls' });
   await dialog
@@ -257,4 +274,29 @@ test('simulates a cloud outage without disabling local services', async ({
   await expect(
     page.getByText('Simulated service outage', { exact: true }),
   ).toHaveCount(0);
+});
+
+test('home shows only the status and two buttons', async ({ page }) => {
+  await stubAgent(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Everything looks fine' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fix my problem' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ask IT' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your time today' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Fix my problem' }).click();
+  await page.getByLabel('What is not working? (optional)').fill('websites do not load');
+  await page.getByRole('button', { name: 'Check and fix' }).click();
+  await expect(page.getByRole('heading', { name: 'What itor can try' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'See more ›' })).toHaveAttribute('href', '/day');
+});
+
+test('asks IT offline and says the ticket will leave later', async ({ page }) => {
+  await stubAgent(page, { offline: true });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible();
+  await page.getByRole('button', { name: 'Ask IT' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Ask IT' });
+  await dialog.getByLabel('Tell IT what is wrong').fill('VPN does not connect');
+  await dialog.getByRole('button', { name: 'Send to IT' }).click();
+  await expect(dialog.getByText('Saved. It will be sent when you are back online.')).toBeVisible();
 });

@@ -278,5 +278,6 @@ export function team() {
     lost_by_cause: { offline: 1800 },
     total_lost_seconds: 1800,
     recent_incidents: [],
+    tickets: [],
   };
 }

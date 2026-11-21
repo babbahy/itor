@@ -15,7 +15,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .company import CompanySender, CompanyServer, Envelope, TeamReport
 from .config import Settings
 from .connectivity import ConnectivityManager, ConnectivityReport, ServiceState, ServiceStatus
-from .incidents import Incident, IncidentLog
+from .incidents import Incident, IncidentLog, failed_checks, is_offline
+from .support import Ticket, TicketInput
 from .network_fixes import FixId, FixRun, NetworkFix, NetworkFixes
 from .diagnosis import GeminiDiagnosisProvider, DiagnosisResult, OllamaDiagnosisProvider
 from .models import (
@@ -466,6 +467,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/incidents")
     async def incidents(service: LocalAgent) -> IncidentReport:
         return IncidentReport(current=service.incidents.current, history=service.incidents.history())
+
+    @app.post("/api/support/ticket", status_code=201)
+    async def support_ticket(body: TicketInput, service: LocalAgent) -> Ticket:
+        report = await service.connectivity_status()
+        reading = service.readiness(await snapshot(service))
+        tried = [f"{item.title}: {item.detail}"[:200] for item in service.store.list("activity", Activity, limit=40)
+                 if item.kind in {"network_fix", "action_verified", "action_failed", "diagnosis"}][:5]
+        ticket = Ticket(
+            employee=service.settings.employee_name, message=body.message, diagnosis=body.diagnosis,
+            pc_status=reading.readiness, findings=[item.title for item in reading.findings],
+            connection=(failed_checks(report) or ["Connection looks normal"]) if report else [],
+            tried=tried, outage_id=service.incidents.current.id if service.incidents.current else None,
+        )
+        service.company_sender.queue_ticket(ticket)
+        if not is_offline(report):
+            await service.company_sender.flush()
+        ticket.sent = not service.company_sender.is_waiting(f"ticket:{ticket.id}")
+        service.store.put("ticket", ticket.id, ticket)
+        service.store.event("ticket", "Sent to IT" if ticket.sent else "Saved for IT",
+                            "IT has your message and what itor found." if ticket.sent
+                            else "It will be sent to IT when the connection is back.")
+        return ticket
+
+    @app.get("/api/support/tickets")
+    async def support_tickets(service: LocalAgent) -> list[Ticket]:
+        tickets = service.store.list("ticket", Ticket, limit=20)
+        return [item.model_copy(update={"sent": not service.company_sender.is_waiting(f"ticket:{item.id}")})
+                for item in tickets]
 
     @app.get("/api/company/status")
     async def company_status(service: LocalAgent) -> CompanyStatus:

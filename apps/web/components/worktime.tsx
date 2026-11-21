@@ -6,6 +6,7 @@ import {
   Eye,
   Hand,
   LifeBuoy,
+  MessageSquare,
   Send,
   ShieldCheck,
   Trophy,
@@ -334,6 +335,37 @@ export function TeamView({
           </table>
         </div>
         {!team?.rows.length && <p className="muted">{stale ? 'Unavailable.' : 'No reports yet today.'}</p>}
+      </article>
+      <article className="card detail-card">
+        <div className="section-heading">
+          <div className="section-icon violet-icon">
+            <MessageSquare size={21} />
+          </div>
+          <div>
+            <h2>Tickets for IT</h2>
+            <p>Sent from itor with what it measured and already tried. Later: straight to Nexthink.</p>
+          </div>
+        </div>
+        <ul className="event-list">
+          {(team?.tickets ?? []).map((item) => (
+            <li key={item.id}>
+              <span className="mini-icon">
+                <MessageSquare size={16} />
+              </span>
+              <div>
+                <strong>
+                  {item.employee} · {item.message}
+                </strong>
+                <p>
+                  {[item.diagnosis, ...item.connection, ...item.tried].filter(Boolean).join(' · ') ||
+                    'No extra details.'}
+                </p>
+              </div>
+              <span>{timeLabel(item.created_at)}</span>
+            </li>
+          ))}
+        </ul>
+        {!team?.tickets.length && <p className="muted">No tickets yet.</p>}
       </article>
       <div className="dashboard-grid dashboard-body">
         <article className="card detail-card">
