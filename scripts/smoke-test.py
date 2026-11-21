@@ -62,8 +62,6 @@ def flow(base: str, cloud_outage: bool, skip_diagnosis: bool, expect_ollama: boo
     demo = request(base, "/api/demo/status")
     active = demo.get("workload", demo).get("active")
     require(active is False, "Stop the current demo workload before running the smoke test.")
-    meeting = request(base, "/api/meetings/next")
-    require(meeting and meeting["id"], "No upcoming meeting. Run make demo-reset to seed the schedule.")
     workload_started = False
     cloud_changed = False
     try:
@@ -81,8 +79,7 @@ def flow(base: str, cloud_outage: bool, skip_diagnosis: bool, expect_ollama: boo
             lambda sample: sample["workload"]["active"] and (sample["workload"]["cpu_percent"] or 0) >= 20,
             "No measured CPU activity from the agent-owned workload.",
         )
-        prepared = request(base, "/api/preflight", {"meeting_id": meeting["id"]})
-        require(prepared["meeting_id"] == meeting["id"], "Preflight did not retain the meeting.")
+        prepared = request(base, "/api/preflight", {})
         require(prepared["readiness"] in {"attention", "not_ready"}, "Preflight did not surface the workload.")
         require(
             any("stop_demo_workload" in item["recommended_action_ids"] for item in prepared["findings"]),

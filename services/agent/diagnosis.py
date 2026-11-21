@@ -15,7 +15,7 @@ from .connectivity import ConnectivityReport, ServiceState, local_model_name, no
 
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=600)]
 ActionId = Literal["stop_demo_workload"]
-Question = Literal["internet", "adapter", "dns", "offline", "meeting", "nexthink", "workload"]
+Question = Literal["internet", "adapter", "dns", "offline", "blocked", "nexthink", "workload"]
 
 
 class ModelExplanation(BaseModel):
@@ -61,8 +61,8 @@ def question_intent(question: str | None) -> Question | None:
         return "offline"
     if "internet" in text or "connect" in text or "network" in text:
         return "internet"
-    if "meeting" in text or "preflight" in text:
-        return "meeting"
+    if "blocked" in text or "stuck" in text or "can't work" in text or "cannot work" in text:
+        return "blocked"
     if any(term in text for term in ("cpu", "workload", "memory", "disk", "slow", "lag", "performance")):
         return "workload"
     return None
@@ -130,19 +130,19 @@ QUESTION_GUIDANCE: dict[Question, tuple[str, str, str]] = {
         "Contact IT if an authorized tenant integration reports an authentication error or remains unreachable.",
     ),
     "offline": (
-        "Local preparation remains available",
-        "The local device agent serves telemetry and cached meetings. On-device inference can continue when a local model is available.",
-        "Check the online meeting link and connection before joining, or ask for an alternative meeting channel.",
+        "Local help is still available",
+        "itor keeps working on this device without internet. It keeps counting your time and can explain problems with a local model.",
+        "Click \"I'm blocked\" so this time is counted as lost because of tools, then follow the steps itor suggests.",
     ),
-    "meeting": (
-        "Get ready for the meeting",
-        "Review the measured device checks, confirm the join link, and test your microphone and speaker in the meeting app.",
-        "If the meeting depends on internet access, confirm the connection before you join.",
+    "blocked": (
+        "You are blocked by a tool",
+        "itor counts this time as lost because of tools, not as idle time.",
+        "Click \"I'm blocked\" while you wait, then ask itor about your internet or your PC.",
     ),
     "workload": (
         "Review the device checks",
         "Resource checks use recent CPU readings and current memory and disk measurements. The findings show any conditions the checks detected.",
-        "Run a new preflight for updated readings.",
+        "Run a new PC check for updated readings.",
     ),
 }
 
@@ -172,15 +172,15 @@ class RulesBasedDiagnosisProvider:
         top = controlled or (safe[0] if safe else {})
         headline = str(top.get("title") or "Review the current device checks")
         explanation = (factual_list(top.get("evidence")) or [
-            "No issue was supplied for explanation. Run a preflight to see which device checks have completed."
+            "No issue was supplied for explanation. Run a PC check to see which device checks have completed."
         ])[0]
-        impact = (factual_list(top.get("potential_impact")) or ["Meeting quality was not measured."])[0]
+        impact = (factual_list(top.get("potential_impact")) or ["The exact effect on your work was not measured."])[0]
         uncertainty = (factual_list(top.get("limitations")) or [
             "These checks cover the local measurements shown. Audio and video call quality were not tested."
         ])[0]
         causes: list[str] = []
         safe_steps: list[str] = []
-        if network and (intent in ("adapter", "dns", "internet", "nexthink", "offline", "meeting") or network.offline_rescue):
+        if network and (intent in ("adapter", "dns", "internet", "nexthink", "offline", "blocked") or network.offline_rescue):
             if intent != "workload":
                 evidence.extend(value["observation"] for value in network_observations(network).values())
             if network.offline_rescue and not top and intent is None:
@@ -196,7 +196,7 @@ class RulesBasedDiagnosisProvider:
                 causes = network_causes(network, intent)
         elif question:
             headline = "Ask about a supported readiness check"
-            explanation = "Try a question about the adapter, DNS, internet, Nexthink, meeting preparation, or device load."
+            explanation = "Try a question about the adapter, DNS, internet, Nexthink, being blocked, or device load."
         return DiagnosisResult(
             status="complete", provider="rules", headline=headline, explanation=explanation,
             observed_facts=evidence, possible_causes=causes, potential_impact=impact, safe_steps=safe_steps,
@@ -205,13 +205,13 @@ class RulesBasedDiagnosisProvider:
             "No local corrective action is available for this result.",
             uncertainty=uncertainty,
             verification_advice="itor checks that the workload exited and collects fresh metrics." if action else
-            "Rerun preparation to refresh measured evidence.",
+            "Run the PC check again to refresh the measurements.",
         )
 
 
 system_prompt = (
-    "You are itor's local meeting-readiness explainer. The JSON observations are the only evidence. "
-    "Briefly describe what the checks mean and the likely meeting impact. Phrase possible causes as possibilities. "
+    "You are itor's helper. You explain device and network problems to an employee in plain, simple words. "
+    "The JSON observations are the only evidence. Briefly describe what the checks mean and the likely impact on their work. Phrase possible causes as possibilities. "
     "Do not invent measurements, readings, states, personal details, Wi-Fi identities, or successful fixes. "
     "Do not repeat or invent numeric measurements. Do not include shell commands, scripts, links, or passwords. "
     "For network issues, suggest only safe manual checks in system settings, through IT, or through itor. "

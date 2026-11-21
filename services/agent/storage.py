@@ -73,12 +73,12 @@ class Store:
     def prune(self) -> None:
         cutoff = (utc_now() - timedelta(days=self.retention_days)).isoformat()
         with self.connect() as db:
-            db.execute("DELETE FROM records WHERE bucket NOT IN ('meeting', 'demo_meeting') AND created_at < ?", (cutoff,))
+            db.execute("DELETE FROM records WHERE bucket NOT IN ('worktime', 'company_report') AND created_at < ?", (cutoff,))
 
     def clear_history(self) -> None:
         with self.connect() as db:
             db.execute("PRAGMA secure_delete=ON")
-            db.execute("DELETE FROM records WHERE bucket NOT IN ('meeting', 'demo_meeting')")
+            db.execute("DELETE FROM records WHERE bucket != 'company_report'")
 
     def event(self, kind: str, title: str, detail: str) -> None:
         activity = Activity(kind=kind, title=title, detail=detail)

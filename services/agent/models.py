@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 
 def utc_now() -> datetime:
@@ -15,33 +15,6 @@ def new_id() -> str:
 
 class Input(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-
-class MeetingInput(Input):
-    title: str = Field(min_length=1, max_length=120)
-    start_at: AwareDatetime
-    duration_minutes: int = Field(ge=5, le=480)
-    platform: str = Field(min_length=1, max_length=40)
-    join_url: HttpUrl | None = None
-    notes: str | None = Field(default=None, max_length=800)
-
-    @field_validator("join_url")
-    @classmethod
-    def safe_join_url(cls, url: HttpUrl | None) -> HttpUrl | None:
-        if url is not None and (url.scheme != "https" or url.username or url.password):
-            raise ValueError("Enter an HTTPS meeting link without embedded credentials.")
-        return url
-
-
-class Meeting(BaseModel):
-    id: str = Field(default_factory=new_id)
-    title: str
-    start_at: AwareDatetime
-    end_at: AwareDatetime
-    platform: str
-    join_url: HttpUrl | None = None
-    notes: str | None = None
-    source: Literal["demo", "manual"]
 
 
 class WorkloadStatus(BaseModel):
@@ -101,13 +74,8 @@ class ReadinessReport(BaseModel):
     checks: list[Check]
 
 
-class PreflightInput(Input):
-    meeting_id: str | None = Field(default=None, max_length=64)
-
-
 class PreflightSession(ReadinessReport):
     id: str = Field(default_factory=new_id)
-    meeting_id: str | None
     started_at: datetime
     completed_at: datetime = Field(default_factory=utc_now)
     status: Literal["completed"] = "completed"

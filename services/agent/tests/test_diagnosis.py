@@ -16,8 +16,8 @@ FINDING = {
     "severity": "warning",
     "title": "Controlled workload is using CPU",
     "evidence": "Controlled workload averaged 48% of one core.",
-    "potential_impact": "Less capacity could be available for your meeting.",
-    "limitations": "Meeting quality was not measured.",
+    "potential_impact": "Less capacity could be available for your work apps.",
+    "limitations": "The exact effect on your work was not measured.",
     "window_seconds": 2,
     "recommended_action_ids": ["stop_demo_workload"],
     "pid": 1234,
@@ -28,9 +28,9 @@ VALID = {
     "headline": "A background workload needs attention",
     "explanation": "The itor workload is using processing resources.",
     "possible_causes": ["The controlled demo workload is active."],
-    "potential_impact": "Your meeting app may have less headroom.",
+    "potential_impact": "Your work apps may have less headroom.",
     "recommended_action_id": "stop_demo_workload",
-    "uncertainty": "Meeting quality was not measured.",
+    "uncertainty": "The exact effect on your work was not measured.",
 }
 
 
@@ -103,7 +103,7 @@ def test_network_guidance_keeps_simulation_explicit_and_read_only():
             result = await RulesBasedDiagnosisProvider().explain(
                 [], network=report, question="Can I still use itor?",
             )
-            assert result.headline == "Local preparation remains available"
+            assert result.headline == "Local help is still available"
             assert any("simulating" in text for text in result.possible_causes)
             assert result.recommended_action_id is None
             assert result.safe_steps

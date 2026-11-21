@@ -1,4 +1,5 @@
 import asyncio
+import time
 import sqlite3
 from contextlib import asynccontextmanager, suppress
 from hmac import compare_digest
@@ -13,10 +14,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .config import Settings
 from .connectivity import ConnectivityManager, ConnectivityReport, ServiceState, ServiceStatus
 from .diagnosis import DiagnosisResult, OllamaDiagnosisProvider
-from .meetings import DemoMeetingProvider, LocalMeetingProvider
 from .models import (
     Action, ActionInput, Activity, Approval, AvailableAction, ChatInput, Consent, DemoStop, DeviceSnapshot,
-    DiagnoseInput, Meeting, MeetingInput, PreflightInput, PreflightSession, Readiness, ReadinessReport,
+    DiagnoseInput, PreflightSession, Readiness, ReadinessReport,
     SimulateInput, WorkloadStatus, new_id, utc_now,
 )
 from .readiness import ReadinessEngine
@@ -25,6 +25,7 @@ from .storage import Store
 from .sync import LocalSyncService, SyncStatus
 from .telemetry import LocalTelemetryProvider
 from .workload import WorkloadError, WorkloadManager
+from .worktime import WorkDay, WorkDayView, WorktimeTracker
 
 
 class ServiceReport(BaseModel):
@@ -39,7 +40,6 @@ class ServiceReport(BaseModel):
 
 class DemoReset(BaseModel):
     workload: WorkloadStatus
-    meetings: list[Meeting]
 
 
 class PrivacyReport(BaseModel):
@@ -59,6 +59,10 @@ class Insights(BaseModel):
     recent_readiness: Readiness | None
 
 
+class BlockedInput(BaseModel):
+    blocked: bool
+
+
 class DiagnosisRecord(BaseModel):
     id: str = Field(default_factory=new_id)
     session_id: str | None = None
@@ -70,8 +74,6 @@ class Agent:
         self.settings = settings
         self.store = Store(settings.db_path, settings.retention_days)
         self.sync = LocalSyncService(db_path=settings.db_path, retention_days=settings.retention_days)
-        self.demo_meetings = DemoMeetingProvider(self.store)
-        self.meetings = LocalMeetingProvider(self.store, self.demo_meetings)
         self.workload = WorkloadManager(settings.demo_seconds)
         self.telemetry = LocalTelemetryProvider(self.workload)
         self.engine = ReadinessEngine(settings.cpu_threshold, settings.cpu_window)
@@ -87,6 +89,7 @@ class Agent:
         self.remediation = LocalSafeRemediationProvider(
             self.workload, self.telemetry, self.store, self.recheck_action, settings.action_expiry_seconds,
         )
+        self.worktime = WorktimeTracker(self.store, settings.employee_name, settings.idle_seconds)
         self.demo_lock = asyncio.Lock()
         self.connectivity_report: ConnectivityReport | None = None
         self.history_generation = 0
@@ -98,15 +101,31 @@ class Agent:
         self.connectivity_report = await self.connectivity.status()
         return self.connectivity_report
 
-    def readiness(self, snapshot: DeviceSnapshot, meeting: Meeting | None = None) -> ReadinessReport:
+    def readiness(self, snapshot: DeviceSnapshot) -> ReadinessReport:
         internet = self.connectivity_report.internet if self.connectivity_report else None
         internet_unavailable = internet is not None and internet.state in {
             ServiceState.DISCONNECTED, ServiceState.UNREACHABLE,
         }
-        return self.engine.evaluate(snapshot, self.telemetry.history(), meeting, internet_unavailable)
+        return self.engine.evaluate(snapshot, self.telemetry.history(), internet_unavailable)
+
+    def lost_time_causes(self) -> list[str]:
+        """Tool problems right now that make active time count as lost time."""
+        causes: list[str] = []
+        report = self.connectivity_report
+        if report and (report.simulated_cloud_outage or report.internet.state in {
+            ServiceState.DISCONNECTED, ServiceState.UNREACHABLE,
+        }):
+            causes.append("offline")
+        latest = self.telemetry.latest()
+        if latest and self.engine.cpu_result(latest, self.telemetry.history())[0]:
+            causes.append("pc_overloaded")
+        return causes
+
+    async def worktime_tick(self, elapsed: float) -> WorkDay:
+        return await asyncio.to_thread(self.worktime.tick, elapsed, self.lost_time_causes())
 
     def recheck_action(self, snapshot: DeviceSnapshot, session: PreflightSession) -> ReadinessReport:
-        return self.readiness(snapshot, self.meetings.get(session.meeting_id) if session.meeting_id else None)
+        return self.readiness(snapshot)
 
     def require_session(self, session_id: str) -> PreflightSession:
         session = self.store.get("preflight", session_id, PreflightSession)
@@ -116,10 +135,15 @@ class Agent:
 
     async def sample_loop(self) -> None:
         cycles = 0
+        last_tick = time.monotonic()
         while True:
             await asyncio.sleep(self.settings.sample_interval)
             await asyncio.to_thread(self.telemetry.capture)
             await self.connectivity_status()
+            now = time.monotonic()
+            if now - last_tick >= self.settings.worktime_interval:
+                await self.worktime_tick(now - last_tick)
+                last_tick = now
             cycles += 1
             if cycles % 60 == 0:
                 await asyncio.to_thread(self.store.prune)
@@ -240,28 +264,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await service.connectivity_status()
         return service.readiness(await snapshot(service))
 
-    @app.get("/api/meetings")
-    async def meetings(service: LocalAgent) -> list[Meeting]:
-        return service.meetings.upcoming()
-
-    @app.get("/api/meetings/next")
-    async def next_meeting(service: LocalAgent) -> Meeting | None:
-        return next(iter(service.meetings.upcoming()), None)
-
-    @app.post("/api/meetings", status_code=201)
-    async def add_meeting(body: MeetingInput, service: LocalAgent) -> Meeting:
-        return service.meetings.add(body)
-
     @app.post("/api/preflight", status_code=201)
-    async def preflight(service: LocalAgent, body: PreflightInput | None = None) -> PreflightSession:
+    async def preflight(service: LocalAgent) -> PreflightSession:
         started = utc_now()
-        meeting = service.meetings.get(body.meeting_id) if body and body.meeting_id else None
-        if body and body.meeting_id and meeting is None:
-            raise HTTPException(404, "Meeting not found.")
         reading = await asyncio.to_thread(service.telemetry.capture)
         await service.connectivity_status()
-        result = service.readiness(reading, meeting)
-        session = PreflightSession(**result.model_dump(), meeting_id=meeting.id if meeting else None, started_at=started)
+        result = service.readiness(reading)
+        session = PreflightSession(**result.model_dump(), started_at=started)
         service.store.put("preflight", session.id, session)
         count = len(session.findings)
         service.store.event("preflight", "Device check completed", f"{session.readiness.replace('_', ' ').capitalize()}. {count} finding(s).")
@@ -337,9 +346,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise HTTPException(409, "Confirm stopping the active demo workload before resetting.")
             workload = await service.stop_demo()
             service.connectivity_report = await service.connectivity.simulate_cloud(False)
-            refreshed = service.demo_meetings.reset()
-            service.store.event("demo_reset", "Demo schedule reset", "Three sample meetings were created relative to the current time.")
-            return DemoReset(workload=workload, meetings=refreshed)
+            service.store.event("demo_reset", "Demo reset", "The demo was restored to its starting state.")
+            return DemoReset(workload=workload)
 
     @app.post("/api/demo/cloud")
     async def simulate_cloud(body: SimulateInput, service: LocalAgent) -> ConnectivityReport:
@@ -354,6 +362,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def check_connection(service: LocalAgent) -> ConnectivityReport:
         service.connectivity_report = await service.connectivity.inspect(probe=True)
         return service.connectivity_report
+
+    @app.get("/api/worktime/today")
+    async def worktime_today(service: LocalAgent) -> WorkDayView:
+        return service.worktime.view()
+
+    @app.get("/api/worktime/week")
+    async def worktime_week(service: LocalAgent) -> list[WorkDay]:
+        return service.worktime.week()
+
+    @app.post("/api/worktime/blocked")
+    async def worktime_blocked(body: BlockedInput, service: LocalAgent) -> WorkDayView:
+        if body.blocked != service.worktime.blocked:
+            service.worktime.blocked = body.blocked
+            title = "Marked as blocked" if body.blocked else "No longer blocked"
+            service.store.event("blocked", title, "This time counts as lost because of tools." if body.blocked else "Time counts as active again.")
+        return service.worktime.view(await service.worktime_tick(0))
+
+    @app.post("/api/demo/worktime")
+    async def demo_worktime(service: LocalAgent) -> WorkDayView:
+        work = await asyncio.to_thread(service.worktime.fill_demo_day)
+        service.store.event("demo_worktime", "Demo day added", "A sample morning was added to today's time.")
+        return service.worktime.view(work)
 
     @app.get("/api/activity")
     async def activity(service: LocalAgent) -> list[Activity]:
@@ -374,7 +404,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         external = ["One approved HTTPS connectivity endpoint and its DNS hostname"] if service.settings.internet_probe_url else []
         return PrivacyReport(model=service.settings.ollama_model, retention_days=service.settings.retention_days,
                              telemetry_sources=["Operating system CPU, memory, disk and network summaries", "itor-owned demo workload"],
-                             stored_data=["Meetings and notes", "Preflight findings and diagnostic summaries", "Action approvals, outcomes and connectivity changes"],
+                             stored_data=["Preflight findings and diagnostic summaries", "Action approvals, outcomes and connectivity changes"],
                              external_connections=external, sync=service.sync.status())
 
     @app.delete("/api/privacy/history", status_code=204)

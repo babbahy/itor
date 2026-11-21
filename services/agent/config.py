@@ -1,3 +1,4 @@
+import getpass
 from dataclasses import dataclass
 from os import getenv
 from pathlib import Path
@@ -21,6 +22,9 @@ class Settings:
     demo_seconds: int = 180
     sample_interval: float = 2.0
     action_expiry_seconds: int = 90
+    employee_name: str = "me"
+    idle_seconds: float = 120.0
+    worktime_interval: float = 15.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -40,6 +44,9 @@ class Settings:
             cpu_window=float(getenv("ITOR_CPU_WINDOW_SECONDS", "6")),
             demo_seconds=int(getenv("ITOR_DEMO_WORKLOAD_SECONDS", "180")),
             sample_interval=float(getenv("ITOR_TELEMETRY_INTERVAL_SECONDS", "2")),
+            employee_name=getenv("ITOR_EMPLOYEE_NAME") or getpass.getuser(),
+            idle_seconds=float(getenv("ITOR_IDLE_SECONDS", "120")),
+            worktime_interval=float(getenv("ITOR_WORKTIME_INTERVAL_SECONDS", "15")),
         )
         if not settings.api_key:
             raise RuntimeError("Set ITOR_AGENT_KEY before starting the device agent.")

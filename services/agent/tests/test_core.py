@@ -170,35 +170,27 @@ async def test_require_key_and_reject_direct_browser_mutation(tmp_path):
 
 
 @pytest.mark.anyio
-async def test_meeting_cache_persists_and_unsafe_url_is_rejected(tmp_path):
-    data = {"title": "Réunion quotidienne", "start_at": (utc_now() + timedelta(minutes=1)).isoformat(),
-            "duration_minutes": 30, "platform": "Teams", "join_url": "https://example.com/room", "notes": "Agenda"}
+async def test_history_clear_and_nexthink_not_configured(tmp_path):
     config = settings(tmp_path)
     async with local_client(config, HEADERS) as client:
-        assert (await client.get("/api/meetings/next")).json()["source"] == "demo"
-        unsafe = await client.post("/api/meetings", json={**data, "join_url": "javascript:alert(1)"})
-        assert unsafe.status_code == 422 and "alert(1)" not in unsafe.text
-        registered = await client.post("/api/meetings", json=data)
-        assert registered.status_code == 201
-        details = registered.json()
+        assert (await client.post("/api/preflight")).status_code == 201
     async with local_client(config, HEADERS) as client:
-        assert (await client.get("/api/meetings/next")).json() == details
+        assert (await client.get("/api/preflight/latest")).json() is not None
         assert (await client.get("/api/connectivity")).json()["nexthink"]["state"] == "not_configured"
         assert (await client.delete("/api/privacy/history")).status_code == 204
-        assert (await client.get("/api/meetings/next")).json() == details
+        assert (await client.get("/api/preflight/latest")).json() is None
 
 
 @pytest.mark.anyio
 async def test_end_to_end_remediation_during_cloud_outage_and_demo_reset(tmp_path):
     config = settings(tmp_path)
     async with local_client(config, HEADERS) as client:
-        original = (await client.get("/api/meetings/next")).json()
         assert (await client.post("/api/demo/cloud", json={"enabled": True})).json()["offline_rescue"]
         assert (await client.post("/api/demo/start")).status_code == 201
         assert (await client.post("/api/demo/start")).status_code == 409
         assert (await client.post("/api/demo/reset")).status_code == 409
         await wait_for(client, "/api/demo/status", lambda x: (x["cpu_percent"] or 0) >= 20)
-        session = (await client.post("/api/preflight", json={"meeting_id": original["id"]})).json()
+        session = (await client.post("/api/preflight")).json()
         assert session["status"] == "completed"
         assert any(item["category"] == "workload" for item in session["findings"])
         diagnosis = (await client.post("/api/diagnose", json={"session_id": session["id"]})).json()
@@ -230,8 +222,7 @@ async def test_end_to_end_remediation_during_cloud_outage_and_demo_reset(tmp_pat
         assert not (await client.get(f"/api/preflight/{session['id']}")).json()["snapshot"]["workload"]["active"]
         assert token not in (await client.get("/api/actions/history")).text
         reset = (await client.post("/api/demo/reset")).json()
-        assert len(reset["meetings"]) == 3 and not reset["workload"]["active"]
-        assert reset["meetings"][0]["id"] != original["id"]
+        assert not reset["workload"]["active"]
         assert (await client.get("/api/connectivity")).json()["nexthink"]["state"] == "not_configured"
         privacy = (await client.get("/api/privacy")).json()
         assert privacy["external_connections"] == [] and privacy["sync"]["state"] == "not_configured"
