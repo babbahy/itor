@@ -37,7 +37,7 @@ def failed_checks(report: ConnectivityReport) -> list[str]:
     failed = [label for key, label in names.items()
               if getattr(report, key).state in (ServiceState.DISCONNECTED, ServiceState.UNREACHABLE)]
     if report.simulated_cloud_outage:
-        failed.append("Company cloud (demo outage)")
+        failed = [item for item in failed if item != "Company cloud"] + ["Company cloud (demo outage)"]
     return failed
 
 

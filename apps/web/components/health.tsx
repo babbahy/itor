@@ -28,6 +28,7 @@ import {
   reading,
   readinessCopy,
   timeLabel,
+  providerLabel,
 } from '@/lib/presentation';
 import { Badge, CheckMark, Notice, Spinner, StateBadge } from './ui';
 
@@ -184,7 +185,7 @@ export function ReadinessCard({
                 ? copy.description
                 : checked
                   ? copy.description
-                  : 'Preflight checks for your next meeting.'}
+                  : 'Quick checks of your PC and connection.'}
           </p>
         </div>
       </div>
@@ -343,11 +344,7 @@ export function DiagnosisCard({
         <div>
           <h2>Diagnosis</h2>
           <p>
-            {diagnosis?.provider === 'ollama'
-              ? `${diagnosis.model ?? 'Qwen'} · On-device AI`
-              : diagnosis
-                ? 'Rules-based explanation'
-                : 'A measured device finding'}
+            {providerLabel(diagnosis) ?? 'A measured device finding'}
           </p>
         </div>
         {pending && <Spinner />}

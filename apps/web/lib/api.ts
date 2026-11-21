@@ -3,17 +3,6 @@ import { z } from 'zod';
 const timestamp = z.iso.datetime({ offset: true });
 const metric = z.number().nullable();
 
-export const meetingSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  start_at: timestamp,
-  end_at: timestamp,
-  platform: z.string(),
-  join_url: z.string().nullable(),
-  notes: z.string().nullable(),
-  source: z.enum(['demo', 'manual']),
-});
-export const meetingsSchema = z.array(meetingSchema);
 export const workloadSchema = z.object({
   active: z.boolean(),
   id: z.string().nullish(),
@@ -66,14 +55,13 @@ export const readinessSchema = z.object({
 });
 export const preflightSchema = readinessSchema.extend({
   id: z.string(),
-  meeting_id: z.string().nullable(),
   started_at: timestamp,
   completed_at: timestamp,
   status: z.literal('completed'),
 });
 export const diagnosisSchema = z.object({
   status: z.string(),
-  provider: z.enum(['ollama', 'rules']),
+  provider: z.enum(['claude', 'ollama', 'rules']),
   model: z.string().nullable(),
   headline: z.string(),
   explanation: z.string(),
@@ -207,10 +195,102 @@ export const insightsSchema = z
   .passthrough();
 export const resetSchema = z.object({
   workload: workloadSchema,
-  meetings: meetingsSchema,
 });
 
-export type Meeting = z.infer<typeof meetingSchema>;
+const seconds = z.number();
+const secondsBy = z.record(z.string(), z.number());
+export const workDaySchema = z.object({
+  day: z.string(),
+  employee: z.string(),
+  active_seconds: seconds,
+  idle_seconds: seconds,
+  lost_seconds: seconds,
+  lost_by_cause: secondsBy,
+  frozen_apps: secondsBy,
+  first_seen: timestamp.nullish(),
+  last_seen: timestamp.nullish(),
+  demo: z.boolean().default(false),
+});
+export const workDayViewSchema = workDaySchema.extend({
+  paid_seconds_total: seconds,
+  state: z.enum(['active', 'idle', 'lost', 'unknown']),
+  blocked: z.boolean(),
+  causes_now: z.array(z.string()),
+});
+export const weekSchema = z.array(workDaySchema);
+export const incidentSchema = z.object({
+  id: z.string(),
+  employee: z.string(),
+  started_at: timestamp,
+  ended_at: timestamp.nullish(),
+  duration_seconds: seconds,
+  simulated: z.boolean(),
+  what_failed: z.array(z.string()),
+  help_given: z.array(z.string()),
+  fixes: z.array(z.string()),
+});
+export const incidentsSchema = z.object({
+  current: incidentSchema.nullable(),
+  history: z.array(incidentSchema),
+});
+export const teamRowSchema = z.object({
+  employee: z.string(),
+  day: z.string(),
+  active_seconds: seconds,
+  idle_seconds: seconds,
+  lost_seconds: seconds,
+  lost_by_cause: secondsBy,
+  frozen_apps: secondsBy,
+  outages: z.number(),
+  outage_seconds: seconds,
+  example: z.boolean(),
+  rank: z.number(),
+  paid_seconds_total: seconds,
+  active_share: z.number(),
+  received_at: timestamp.nullish(),
+});
+export const teamSchema = z.object({
+  day: z.string(),
+  rows: z.array(teamRowSchema),
+  lost_by_cause: secondsBy,
+  total_lost_seconds: seconds,
+  recent_incidents: z.array(incidentSchema),
+});
+export const companyStatusSchema = z.object({
+  configured: z.boolean(),
+  employee: z.string(),
+  pending: z.number(),
+  last_sent_at: timestamp.nullish(),
+  last_error: z.string().nullish(),
+});
+export const fixSchema = z.object({
+  id: z.enum(['flush_dns', 'restart_wifi']),
+  title: z.string(),
+  what_it_does: z.string(),
+  command: z.string(),
+  needs_admin: z.boolean(),
+  supported: z.boolean(),
+});
+export const fixesSchema = z.array(fixSchema);
+export const fixRunSchema = z.object({
+  id: z.string(),
+  fix_id: z.string(),
+  title: z.string(),
+  status: z.enum(['awaiting_approval', 'running', 'succeeded', 'failed', 'canceled', 'expired']),
+  expires_at: timestamp,
+  approval_token: z.string().nullish(),
+  internet_before: z.string().nullish(),
+  internet_after: z.string().nullish(),
+  message: z.string().nullish(),
+});
+
+export type WorkDayView = z.infer<typeof workDayViewSchema>;
+export type WorkDay = z.infer<typeof workDaySchema>;
+export type Incident = z.infer<typeof incidentSchema>;
+export type Team = z.infer<typeof teamSchema>;
+export type CompanyStatus = z.infer<typeof companyStatusSchema>;
+export type Fix = z.infer<typeof fixSchema>;
+export type FixRun = z.infer<typeof fixRunSchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;
 export type Finding = z.infer<typeof findingSchema>;
 export type Readiness = z.infer<typeof readinessSchema>;

@@ -1,24 +1,10 @@
 import type {
   Action,
   Diagnosis,
-  Meeting,
   Readiness,
   ServiceStatus,
   Snapshot,
 } from '../lib/api';
-
-export function makeMeeting(now: number, minutes = 12): Meeting {
-  return {
-    id: `meeting-${minutes}`,
-    title: minutes === 12 ? 'Product Team Weekly' : 'Project Review',
-    start_at: new Date(now + minutes * 60_000).toISOString(),
-    end_at: new Date(now + (minutes + 30) * 60_000).toISOString(),
-    platform: 'Microsoft Teams',
-    join_url: 'https://meet.example/session',
-    notes: null,
-    source: 'demo',
-  };
-}
 
 const now = () => new Date().toISOString();
 
@@ -119,7 +105,7 @@ export function readinessReport(readiness: Readiness['readiness']): Readiness {
             title: 'Controlled workload consuming CPU',
             evidence: 'The controlled workload used 42% of one CPU core.',
             window_seconds: 2,
-            potential_impact: 'Less CPU is available for a meeting app.',
+            potential_impact: 'Less CPU is available for your work apps.',
             recommended_action_ids: ['stop_demo_workload'],
             source: 'local',
             limitations: 'Overall CPU can change independently.',
@@ -138,7 +124,7 @@ export function readinessReport(readiness: Readiness['readiness']): Readiness {
         id: 'audio',
         label: 'Audio availability',
         state: 'unsupported',
-        detail: 'Test audio in your meeting app.',
+        detail: 'Test audio in your call app.',
       },
       {
         id: 'network',
@@ -205,5 +191,92 @@ export function approval(status: Action['status']): Action {
       status === 'failed'
         ? 'Verification could not confirm the process exited.'
         : null,
+  };
+}
+
+export function workDay(overrides: Record<string, unknown> = {}) {
+  return {
+    day: '2026-11-21',
+    employee: 'alex',
+    active_seconds: 3 * 3600,
+    idle_seconds: 20 * 60,
+    lost_seconds: 15 * 60,
+    lost_by_cause: { offline: 10 * 60, pc_overloaded: 5 * 60 },
+    frozen_apps: {},
+    first_seen: new Date(Date.now() - 4 * 3600_000).toISOString(),
+    last_seen: new Date().toISOString(),
+    demo: false,
+    paid_seconds_total: 3 * 3600 + 15 * 60,
+    state: 'active',
+    blocked: false,
+    causes_now: [],
+    ...overrides,
+  };
+}
+
+export const companyStatus = {
+  configured: true,
+  employee: 'alex',
+  pending: 0,
+  last_sent_at: new Date().toISOString(),
+  last_error: null,
+};
+
+export const fixes = [
+  {
+    id: 'flush_dns',
+    title: 'Clear the DNS cache',
+    what_it_does: 'Forgets old website addresses.',
+    command: 'ipconfig /flushdns',
+    needs_admin: false,
+    supported: true,
+  },
+  {
+    id: 'restart_wifi',
+    title: 'Turn Wi-Fi off and on',
+    what_it_does: 'Restarts the Wi-Fi card.',
+    command: 'powershell -Command "Restart-NetAdapter"',
+    needs_admin: true,
+    supported: true,
+  },
+];
+
+export function fixRun(status: string) {
+  return {
+    id: 'run',
+    fix_id: 'flush_dns',
+    title: 'Clear the DNS cache',
+    status,
+    expires_at: new Date(Date.now() + 90_000).toISOString(),
+    approval_token: status === 'awaiting_approval' ? 'fix-approval-token' : null,
+    internet_before: status === 'succeeded' ? 'unreachable' : null,
+    internet_after: status === 'succeeded' ? 'connected' : null,
+    message: status === 'succeeded' ? 'Done.' : null,
+  };
+}
+
+export function team() {
+  const row = (employee: string, rank: number, active: number, example: boolean) => ({
+    employee,
+    day: '2026-11-21',
+    active_seconds: active * 3600,
+    idle_seconds: 1800,
+    lost_seconds: 900,
+    lost_by_cause: { offline: 900 },
+    frozen_apps: {},
+    outages: 1,
+    outage_seconds: 900,
+    example,
+    rank,
+    paid_seconds_total: active * 3600 + 900,
+    active_share: 0.8,
+    received_at: null,
+  });
+  return {
+    day: '2026-11-21',
+    rows: [row('Example · Inès', 1, 7, true), row('alex', 2, 3, false)],
+    lost_by_cause: { offline: 1800 },
+    total_lost_seconds: 1800,
+    recent_incidents: [],
   };
 }

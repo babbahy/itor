@@ -1,28 +1,27 @@
 # Five-minute demo
 
-## Rehearse
+## Before you go on stage
+1. Open PowerShell **as administrator**, run `./scripts/dev.ps1`, open the printed address.
+2. Start Ollama with `qwen3.5:4b` (see README). Ask one question once so the model is warm.
+3. Set `ANTHROPIC_API_KEY` in `.env` if you want to show Claude online.
+4. **Demo controls** → **Reset demo session**, then **Add a demo morning** (so the numbers are not empty).
 
-1. Start the local launcher and open the printed URL. Run `make demo-ready`.
-2. Open **Demo controls**, select **Reset demo session**, and click **Confirm reset**. Confirm that the workload is idle and the next meeting is labeled as a sample.
-3. For a live AI demo, start Ollama with the configured model installed. In Settings, check the Local AI status. A rehearsal through the full issue flow warms model files and confirms the explanation provider. Reset afterward.
-4. If you plan to join a real call, add a near-future manual meeting with an HTTPS URL you control. Sample meetings have no real join links. An approved reachability endpoint is optional and can be configured before startup if you want to show measured internet status.
+## Script
 
 | Time | On screen | What to say |
 | --- | --- | --- |
-| 0:00–0:40 | Open **Today** and show the next meeting and time remaining. | Most employees only think about IT support after something goes wrong. Preparing for a meeting gives them a reason to use proactive support every day. |
-| 0:40–1:20 | Click **Prepare my meeting**. Show the latest preflight and checklist. | The laptop checks supported signals in seconds. The employee can use the checklist and launch shortcut on a healthy day. |
-| 1:20–2:00 | Click **Demo controls** → **Start safe CPU workload**. Close the dialog, wait for a sampled reading, and click **Run preflight again**. | This temporary workload is consuming a measured fraction of one CPU core. The reading comes from the local child process. |
-| 2:00–2:40 | Read the diagnosis and point to its provider label and measured evidence. | Qwen can explain the issue on this laptop. When the model is unavailable, the app gives a deterministic local explanation. |
-| 2:40–3:30 | Click **Fix this for me**, read the scope, then click **Approve and stop workload**. Wait for the verification panel. | The employee approves just this workload. We recheck process exit and show the actual CPU samples. |
-| 3:30–4:15 | Return to the meeting. Show the checklist and **Join meeting** if a configured link is available. | The employee can go back to their original goal. Audio and camera can be checked in the meeting app. |
-| 4:15–4:40 | Open **Settings** to show providers, then **Demo controls** → **Simulate cloud unavailability**. Close the dialog to show the banner, then reopen controls and click **Restore cloud adapter**. | itor can keep preparing meetings and checking the device during cloud loss. The simulated outage changes only the demo adapter. |
-| 4:40–5:00 | Return to **Today**. | With tenant access, NQL and governed Remote Actions can sit behind the same provider boundaries. itor gives employees a daily reason to benefit from proactive IT. |
+| 0:00–0:40 | **My day**: active, lost to tools, idle, hours to pay. | Every company pays hours. itor counts real working time, and also the time **tools** made you lose. That's why people open it every day, even when nothing is broken. |
+| 0:40–1:10 | Point to **What your manager sees**. | The manager sees exactly these numbers, nothing more. No keystrokes, no screenshots, no websites. And it stays inside the company, never at Nexthink. |
+| 1:10–1:40 | Click **I'm blocked**, then stop it. | When a tool blocks me, I say so in one click. It counts as lost time because of IT, not as idle. |
+| 1:40–2:30 | **Demo controls** → **Simulate cloud unavailability**. Close. Show **You're offline. itor keeps helping.** → **Ask the local helper**. | The network is down: remote IT is blind. itor's local AI runs on this laptop and still guides me. It writes an outage log. |
+| 2:30–3:10 | Click **Fix it** on "Clear the DNS cache". Show the exact command, **Approve and run**. | The AI can only propose fixes from a safe list. Nothing runs until I approve. Then itor measures again. |
+| 3:10–3:40 | **Demo controls** → **Restore cloud adapter**. | Connection is back. The outage log and my day are sent to the company automatically. |
+| 3:40–4:30 | Open **Team**. | The manager sees the ranking for exact pay, and the time the team lost to tools: this is what IT should fix first. |
+| 4:30–5:00 | Back to **My day**. Optional: Demo controls → Start safe CPU workload → **Fix this for me**. | One tool: count your time, and when a tool steals it, get it back, even offline. |
 
-## If the demonstration goes off-script
-
-- **Sample meeting advanced.** Reset the demo schedule from the demo controls or run `make demo-reset`.
-- **Model is loading, missing or unavailable.** Show the ready device checks immediately and use the labeled local explanation. Verify the tag in `ollama list` after the session.
-- **Workload timed out.** Start a new demo run and prepare the meeting again. Existing approvals are scoped to the prior run.
-- **Verification shows a smaller drop or higher overall CPU.** Show the measured before/after readings and confirmed child-process exit. Other work on the laptop can change total CPU during verification.
-- **No usable network or join link.** Show the last cached meeting and the **Investigate connection** panel. Show any published join action only when a usable link is present and local checks do not indicate an outage.
-- **Agent disconnected.** Check the launcher's output and reopen the printed loopback URL after restarting both services.
+## If something goes wrong
+- **Local AI missing or slow:** itor answers with simple rules (labeled). Keep going.
+- **No Claude key / no internet:** answers come from the local AI. That is the point of the demo.
+- **Wi-Fi fix fails:** itor is not running as administrator. Use the DNS fix instead.
+- **Team page empty for you:** click **Send my day now**.
+- **Agent disconnected:** check the launcher output and reopen the printed address.

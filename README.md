@@ -1,8 +1,13 @@
 # itor
 
-**Your workday, ready before you are.**
+**Count your time. When a tool steals it, get it back, even offline.**
 
-itor is a local hackathon prototype for preparing for a meeting. Open the next meeting, check what the laptop can measure, and run through a short preparation checklist. When a itor demo workload is using CPU, the app can explain the observed problem, ask permission to stop that workload, and verify its exit. The project is designed to complement Nexthink Spark through future provider integrations.
+itor is a hackathon prototype with two parts:
+
+1. **A time clock.** It counts active time, idle time and time lost because of tools (internet down, PC overloaded, frozen app, "I'm blocked"). The manager sees the same numbers on the company's own server to pay exact hours and rank the team. Nothing goes to Nexthink.
+2. **An offline helper.** When the network drops, a local AI (Qwen through Ollama) still guides the employee, proposes safe fixes that run only after Approve, and writes an outage log that is sent when the connection is back. With internet, Claude answers.
+
+See [PLAN.md](PLAN.md) for the plan and status, and [docs/PRIVACY.md](docs/PRIVACY.md) for what is measured.
 
 ## Run locally
 
@@ -46,12 +51,12 @@ If Ollama already runs as a desktop app or service, enable its local-only settin
 
 ## Try the demo
 
-1. Open **Today** and prepare the next meeting. The starter schedule is labeled as sample data. Add an HTTPS join link to your own meeting if you plan to click **Join meeting**.
-2. In the demo controls, start the CPU workload and run preflight again. The warning uses live CPU activity from the temporary child process.
-3. Review the diagnosis and approve the proposed stop action. Inspect the process exit and the before-and-after CPU measurements when verification completes.
-4. Simulate cloud unavailability. Local metrics, meetings, diagnosis, and safe actions remain available. Restore the adapter from the same controls.
+1. Open **My day**. In **Demo controls**, click **Add a demo morning** so the numbers are not empty. Try **I'm blocked**.
+2. In the demo controls, **Simulate cloud unavailability**. My day shows the offline helper: ask the local AI, run a quick fix (it needs Approve). Restore the adapter: the outage log is sent.
+3. Open **Team** to see the ranking and the time the team lost to tools.
+4. Optional: start the CPU workload, then **Fix this for me** and approve. itor checks the process exit and measures again.
 
-Use `make demo-ready` to check the running app, `make demo-reset` to restore the sample schedule and demo state, and `make smoke` to run the critical API flow through Next.js. Add `--cloud-outage` to `.venv/bin/python scripts/smoke-test.py flow` to exercise the simulated cloud outage. The full five-minute walkthrough and recovery steps are in [DEMO.md](docs/DEMO.md).
+Use `make demo-ready` to check the running app, `make demo-reset` to restore the demo state, and `make smoke` to run the critical API flow through Next.js. Add `--cloud-outage` to `.venv/bin/python scripts/smoke-test.py flow` to exercise the simulated cloud outage. The full five-minute walkthrough and recovery steps are in [DEMO.md](docs/DEMO.md).
 
 ## Development and documentation
 
@@ -69,4 +74,4 @@ make build
 - [Tests and offline verification](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 
-If the agent is unavailable, use the printed local address and check the launcher output for a port conflict. If Ollama reports a missing model, verify the exact tag in `ollama list`. Internet reachability starts as unverified unless you configure an approved HTTPS endpoint. Interface data alone cannot establish internet or meeting quality.
+If the agent is unavailable, use the printed local address and check the launcher output for a port conflict. If Ollama reports a missing model, verify the exact tag in `ollama list`. Internet reachability starts as unverified unless you configure an approved HTTPS endpoint. Interface data alone cannot prove internet works. Without that endpoint, real offline is detected when the network card is down; the demo outage button always works.

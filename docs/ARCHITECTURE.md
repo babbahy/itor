@@ -1,10 +1,10 @@
 # Architecture
 
-itor runs as two loopback services on the employee’s machine. Next.js serves the UI and bundled assets and passes approved API routes to FastAPI. FastAPI samples the host through psutil, owns the bounded child workload, and stores meetings and compact events in SQLite. Ollama runs separately on loopback and receives a limited diagnosis payload.
+itor runs as two loopback services on the employee’s machine. Next.js serves the UI and bundled assets and passes approved API routes to FastAPI. FastAPI samples the host through psutil, owns the bounded child workload, and stores working time and compact events in SQLite. Ollama runs separately on loopback and receives a limited diagnosis payload.
 
 ```mermaid
 flowchart LR
-    User["Employee"] --> Web["Next.js meeting launchpad"]
+    User["Employee"] --> Web["Next.js: My day, My PC, Team"]
     Web --> Proxy["Same-origin API proxy"]
     Proxy --> Agent["FastAPI device agent"]
     Agent --> Telemetry["Local telemetry and readiness rules"]
@@ -18,15 +18,15 @@ flowchart LR
     Connectivity -. "Optional approved HTTPS probe" .-> Endpoint["Configured endpoint"]
 ```
 
-## Meeting preparation
+## Time clock and offline help
 
-The local meeting provider reads time-zone-aware records. The demo provider seeds a schedule relative to startup or reset. A preflight associates a readiness report with a meeting and returns deterministic checks without waiting for inference. The UI requests a diagnosis separately when relevant. The diagnosis service receives summarized findings and connection states. The executable action and fresh verification always come from the agent.
+`worktime.py` counts active, idle and lost time every 15 seconds and stores one total per day. `incidents.py` opens an outage log when internet or the cloud drops. `company.py` keeps an outbox of daily totals and outage logs and sends them to the company server (`ITOR_COMPANY_URL`) when online; the same program can act as that server and builds the team ranking. Diagnosis goes Claude (online) → local Ollama → rules. Quick fixes (`network_fixes.py`) and the demo workload stop run only after Approve.
 
 ## Provider boundaries
 
 | Concern | Local implementation | Future integration |
 | --- | --- | --- |
-| Meetings | SQLite and labeled fixtures | Optional calendar import or enterprise calendar provider |
+| Working time | Local time clock and company server | HR / payroll export |
 | Telemetry | psutil snapshots and bounded in-memory history | Predefined tenant NQL queries with measurement timestamps |
 | Diagnosis | Deterministic rules and optional loopback Ollama | Supported authenticated Spark handoff |
 | Remediation | One allowlisted, agent-owned stop action | Configured Remote Actions or permitted workflows |
@@ -42,6 +42,6 @@ Nexthink remains unconfigured in the prototype. The optional synchronization bou
 
 ## Bundled artwork
 
-The local meeting illustration is [hero-art.webp](../apps/web/public/hero-art.webp). It was created with the built-in image generation tool and compressed to WebP for offline delivery. The tool received this generation prompt.
+The illustration is [hero-art.webp](../apps/web/public/hero-art.webp). It was created with the built-in image generation tool and compressed to WebP for offline delivery. The tool received this generation prompt.
 
-> Create a wide landscape 3D decorative hero art background for the right half of the itor meeting dashboard. In a near-black ink navy studio, a single large angled continuous orbital ring made of smoked dark violet glass and brushed chrome, with a fine electric-lavender edge reflection and two subtly luminous pinpoints on the orbit. Premium restrained industrial design render, sculptural and believable materials, crisp rim, subtle depth. Concentrate the object and all bright details in the rightmost two-thirds, letting the left third and exterior edges fade smoothly into uniform near-black navy, so a meeting title on the left stays readable. Wide crop with generous breathing space. No letters, text, logo, interface, instrument overlay, extra props or people.
+> Create a wide landscape 3D decorative hero art background for the right half of the itor dashboard. In a near-black ink navy studio, a single large angled continuous orbital ring made of smoked dark violet glass and brushed chrome, with a fine electric-lavender edge reflection and two subtly luminous pinpoints on the orbit. Premium restrained industrial design render, sculptural and believable materials, crisp rim, subtle depth. Concentrate the object and all bright details in the rightmost two-thirds, letting the left third and exterior edges fade smoothly into uniform near-black navy, so a meeting title on the left stays readable. Wide crop with generous breathing space. No letters, text, logo, interface, instrument overlay, extra props or people.

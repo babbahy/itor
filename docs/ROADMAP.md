@@ -2,7 +2,7 @@
 
 ## Delivered for the prototype
 
-- Local meeting launchpad with a repeatable sample schedule and manual meetings.
+- Time clock (active, idle, lost to tools), team ranking on the company server, offline outage logs.
 - Live host telemetry, deterministic readiness, and optional structured Ollama explanations.
 - Scoped user approval with before-and-after verification of an application-owned CPU workload.
 - Independent local/Internet/cloud status, read-only network investigation and a controlled cloud adapter outage.

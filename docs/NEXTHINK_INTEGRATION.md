@@ -1,6 +1,6 @@
 # Nexthink integration
 
-itor owns the next-meeting workflow, readiness presentation and approval interaction. The current prototype implements telemetry, diagnosis and remediation locally. Nexthink status is **Not configured** outside the clearly labeled demo outage.
+itor owns the time clock, offline help, readiness presentation and approval interaction. The current prototype implements telemetry, diagnosis and remediation locally. Nexthink status is **Not configured** outside the clearly labeled demo outage.
 
 ## What tenant access would enable
 
@@ -13,4 +13,4 @@ Nexthink documents OAuth client credentials with per-feature permissions. Establ
 
 ## Freshness, outages and authorization
 
-Preserve stale cloud data with its last-updated time. Use separate checks for endpoint reachability and authorization, including explicit handling for 401/403. On recovery, revalidate authentication and refresh context. Keep meetings and local preflight available throughout. A future consented sync adapter must deduplicate local event IDs and suppress automatic replay of actions. The prototype contains no production tenant IDs, credentials, or verified Spark handoff.
+Preserve stale cloud data with its last-updated time. Use separate checks for endpoint reachability and authorization, including explicit handling for 401/403. On recovery, revalidate authentication and refresh context. Keep the time clock and local help available throughout. A future consented sync adapter must deduplicate local event IDs and suppress automatic replay of actions. The prototype contains no production tenant IDs, credentials, or verified Spark handoff.

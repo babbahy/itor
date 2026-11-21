@@ -2,7 +2,7 @@
 
 import { CircleHelp, Plug, Radar, Wifi, WifiOff } from 'lucide-react';
 import type { Connectivity, Diagnosis } from '@/lib/api';
-import { timeLabel } from '@/lib/presentation';
+import { providerLabel, timeLabel } from '@/lib/presentation';
 import { Badge, Notice, ServiceBadge, Spinner } from './ui';
 
 export function OfflineBanner({
@@ -184,10 +184,8 @@ export function NetworkPanel({
         {diagnosisError && <Notice kind="error">{diagnosisError}</Notice>}
         {diagnosis && (
           <div className="network-answer" aria-live="polite">
-            <Badge tone={diagnosis.provider === 'ollama' ? 'violet' : 'muted'}>
-              {diagnosis.provider === 'ollama'
-                ? `${diagnosis.model ?? 'Qwen'} · On device`
-                : 'Rules-based explanation'}
+            <Badge tone={diagnosis.provider === 'rules' ? 'muted' : 'violet'}>
+              {providerLabel(diagnosis)}
             </Badge>
             <h4>{diagnosis.headline}</h4>
             <p>{diagnosis.explanation}</p>

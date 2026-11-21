@@ -7,18 +7,24 @@ const maxBody = 16_384;
 const identifier = "[a-zA-Z0-9_-]{1,100}";
 const routes = {
   GET: [
-    /^(health|status|activity|insights|privacy|meetings)$/,
+    /^(health|status|activity|insights|privacy|fixes|incidents)$/,
     /^device\/(snapshot|history|capabilities|readiness)$/,
-    /^meetings\/next$/,
+    /^worktime\/(today|week)$/,
+    /^company\/(status|team)$/,
+    new RegExp(`^fixes/runs/${identifier}$`),
     /^demo\/status$/,
     /^connectivity$/,
     new RegExp(`^preflight/${identifier}$`),
     new RegExp(`^actions/${identifier}$`),
   ],
   POST: [
-    /^(meetings|preflight|diagnose)$/,
+    /^(preflight|diagnose)$/,
     /^diagnosis\/chat$/,
-    /^demo\/(start|stop|reset|cloud)$/,
+    /^demo\/(start|stop|reset|cloud|worktime)$/,
+    /^worktime\/blocked$/,
+    /^company\/send$/,
+    /^fixes\/(flush_dns|restart_wifi)\/plan$/,
+    new RegExp(`^fixes/runs/${identifier}/(approve|cancel)$`),
     /^actions\/plan$/,
     /^connectivity\/check$/,
     new RegExp(`^actions/${identifier}/(approve|cancel)$`),

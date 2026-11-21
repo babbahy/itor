@@ -7,7 +7,6 @@ import {
   CircleHelp,
   FlaskConical,
   Menu,
-  Plus,
   ShieldCheck,
   Sparkles,
   Wifi,
@@ -36,9 +35,12 @@ import {
   connectivitySchema,
   diagnosisSchema,
   historySchema,
-  insightsSchema,
-  meetingSchema,
-  meetingsSchema,
+  companyStatusSchema,
+  fixRunSchema,
+  fixesSchema,
+  incidentsSchema,
+  teamSchema,
+  workDayViewSchema,
   post,
   preflightSchema,
   privacySchema,
@@ -48,7 +50,8 @@ import {
   workloadSchema,
   type Action,
   type Finding,
-  type Meeting,
+  type Fix,
+  type FixRun,
   type Preflight,
 } from '@/lib/api';
 import {
@@ -56,11 +59,9 @@ import {
   actionable,
   currentReadiness,
   dateLabel,
-  safeJoin,
   sections,
   timeLabel,
   toMessage,
-  upcomingMeetings,
 } from '@/lib/presentation';
 import {
   ActionOutcome,
@@ -70,9 +71,9 @@ import {
   ReadinessCard,
   Workload,
 } from './health';
-import { DailyTip, MeetingForm, MeetingHero, Upcoming } from './meetings';
 import { AgentUnavailable, NetworkPanel, OfflineBanner } from './network';
-import { EventList, Insights, Privacy, Settings } from './secondary';
+import { EventList, Privacy, Settings } from './secondary';
+import { DayCard, FirstLaunchNotice, ManagerView, OfflineHelp, TeamView } from './worktime';
 import { Badge, Dialog, Notice, ServiceBadge, Spinner, StateBadge } from './ui';
 
 const subscription = (callback: () => void) => {
@@ -84,7 +85,7 @@ const serverTime = () => 0;
 const stopAction = 'stop_demo_workload';
 
 type DialogName =
-  | 'meeting'
+  | 'fix'
   | 'network'
   | 'demo'
   | 'approval'
@@ -122,7 +123,9 @@ function Dashboard({ children }: { children: ReactNode }) {
   const [demoNotice, setDemoNotice] = useState<string>();
   const [announcement, setAnnouncement] = useState<string>();
   const [dialogFinding, setDialogFinding] = useState<Finding>();
-  const [audioChecked, setAudioChecked] = useState<Record<string, boolean>>({});
+  const [fixRun, setFixRun] = useState<FixRun>();
+  const [fixError, setFixError] = useState<string>();
+  const [fixPick, setFixPick] = useState<Fix>();
   const busyReview = useRef<HTMLElement>(null);
 
   const status = useQuery({
@@ -140,20 +143,35 @@ function Dashboard({ children }: { children: ReactNode }) {
     queryFn: () => api(historySchema, 'device/history'),
     refetchInterval: 4500,
   });
-  const meetings = useQuery({
-    queryKey: ['meetings'],
-    queryFn: () => api(meetingsSchema, 'meetings'),
-    refetchInterval: 30_000,
+  const worktime = useQuery({
+    queryKey: ['worktime'],
+    queryFn: () => api(workDayViewSchema, 'worktime/today'),
+    refetchInterval: 5000,
+  });
+  const company = useQuery({
+    queryKey: ['company'],
+    queryFn: () => api(companyStatusSchema, 'company/status'),
+    refetchInterval: 10_000,
+  });
+  const fixes = useQuery({
+    queryKey: ['fixes'],
+    queryFn: () => api(fixesSchema, 'fixes'),
+  });
+  const incidents = useQuery({
+    queryKey: ['incidents'],
+    queryFn: () => api(incidentsSchema, 'incidents'),
+    refetchInterval: 5000,
   });
   const events = useQuery({
     queryKey: ['activity'],
     queryFn: () => api(activitySchema, 'activity'),
     refetchInterval: 8000,
   });
-  const insights = useQuery({
-    queryKey: ['insights'],
-    queryFn: () => api(insightsSchema, 'insights'),
-    enabled: path === '/insights',
+  const team = useQuery({
+    queryKey: ['team'],
+    queryFn: () => api(teamSchema, 'company/team'),
+    enabled: path === '/team',
+    refetchInterval: 5000,
   });
   const privacy = useQuery({
     queryKey: ['privacy'],
@@ -177,46 +195,31 @@ function Dashboard({ children }: { children: ReactNode }) {
     if (actionFinished)
       void client.invalidateQueries({
         predicate: ({ queryKey }) =>
-          ['readiness', 'history', 'status', 'activity', 'insights'].includes(
+          ['readiness', 'history', 'status', 'activity', 'worktime'].includes(
             String(queryKey[0]),
           ),
       });
   }, [actionFinished, client]);
   const connectivity = status.data?.connectivity;
   const down = status.isError;
-  const sorted = upcomingMeetings(meetings.data ?? [], now);
-  const nextMeeting = sorted[0];
-  const sessionForMeeting =
-    session?.meeting_id === nextMeeting?.id ? session : undefined;
   const finding =
     !down &&
     (actionable(readiness.data?.findings ?? []) ?? readiness.data?.findings[0]);
-  const join = safeJoin(nextMeeting?.join_url, connectivity, down);
-  const joinBlocked = Boolean(nextMeeting?.join_url && !join && !down);
 
   function refresh(...keys: string[]) {
     for (const key of keys) void client.invalidateQueries({ queryKey: [key] });
   }
 
-  const addMeeting = useMutation({
-    mutationFn: (body: object) => post(meetingSchema, 'meetings', body),
-    onSuccess: () => {
-      refresh('meetings');
-      setDialog(null);
-      setAnnouncement('Meeting added.');
-    },
-  });
   const explain = useMutation({
     mutationFn: (id: string) =>
       post(diagnosisSchema, 'diagnose', { session_id: id }),
     onSuccess: () => refresh('activity'),
   });
   const preflight = useMutation({
-    mutationFn: (meeting: Meeting | undefined) =>
-      post(preflightSchema, 'preflight', { meeting_id: meeting?.id ?? null }),
+    mutationFn: () => post(preflightSchema, 'preflight'),
     onSuccess: (result) => {
       setSession(result);
-      refresh('readiness', 'history', 'activity', 'insights');
+      refresh('readiness', 'history', 'activity');
     },
   });
   const plan = useMutation({
@@ -241,7 +244,7 @@ function Dashboard({ children }: { children: ReactNode }) {
       setAction(result);
       client.setQueryData(['action', result.id], result);
       setDialog(null);
-      refresh('readiness', 'history', 'status', 'activity', 'insights');
+      refresh('readiness', 'history', 'status', 'activity', 'worktime');
     },
     onError: (error) => setApprovalError(toMessage(error)),
   });
@@ -298,11 +301,9 @@ function Dashboard({ children }: { children: ReactNode }) {
       }
       setDemoConfirm(null);
       setDemoNotice(
-        mode === 'reset'
-          ? 'Demo schedule and session reset.'
-          : 'Demo workload stopped.',
+        mode === 'reset' ? 'Demo reset.' : 'Demo workload stopped.',
       );
-      refresh('meetings', 'status', 'readiness', 'history', 'activity');
+      refresh('status', 'readiness', 'history', 'activity');
     },
   });
   const simulateCloud = useMutation({
@@ -310,13 +311,69 @@ function Dashboard({ children }: { children: ReactNode }) {
       post(connectivitySchema, 'demo/cloud', { enabled }),
     onSuccess: () => refresh('status', 'activity'),
   });
+  const blocked = useMutation({
+    mutationFn: (value: boolean) =>
+      post(workDayViewSchema, 'worktime/blocked', { blocked: value }),
+    onSuccess: (result) => {
+      client.setQueryData(['worktime'], result);
+      refresh('activity');
+    },
+  });
+  const demoDay = useMutation({
+    mutationFn: () => post(workDayViewSchema, 'demo/worktime'),
+    onSuccess: (result) => {
+      client.setQueryData(['worktime'], result);
+      setDemoNotice('A demo morning was added to today.');
+      refresh('activity', 'company', 'team');
+    },
+  });
+  const sendCompany = useMutation({
+    mutationFn: () => post(companyStatusSchema, 'company/send'),
+    onSuccess: (result) => {
+      client.setQueryData(['company'], result);
+      refresh('team');
+    },
+  });
+  const planFix = useMutation({
+    mutationFn: (fix: Fix) => post(fixRunSchema, `fixes/${fix.id}/plan`),
+    onSuccess: (result, fix) => {
+      setFixPick(fix);
+      setFixRun(result);
+      setFixError(undefined);
+      setDialog('fix');
+    },
+    onError: (error) => setAnnouncement(toMessage(error)),
+  });
+  const approveFix = useMutation({
+    mutationFn: (run: FixRun) =>
+      post(fixRunSchema, `fixes/runs/${run.id}/approve`, {
+        approval_token: run.approval_token,
+        approved: true,
+      }),
+    onSuccess: (result) => {
+      setFixRun(result);
+      refresh('status', 'activity', 'incidents');
+    },
+    onError: (error) => setFixError(toMessage(error)),
+  });
+  const cancelFix = useMutation({
+    mutationFn: (run: FixRun) =>
+      post(fixRunSchema, `fixes/runs/${run.id}/cancel`, {
+        approval_token: run.approval_token,
+      }),
+    onSettled: () => {
+      setDialog(null);
+      setFixRun(undefined);
+      refresh('activity');
+    },
+  });
   const clearHistory = useMutation({
     mutationFn: () => api(z.unknown(), 'privacy/history', { method: 'DELETE' }),
     onSuccess: () => {
       setSession(undefined);
       setAction(undefined);
       explain.reset();
-      refresh('activity', 'history', 'insights', 'privacy');
+      refresh('activity', 'history', 'worktime', 'privacy');
       setDialog(null);
       setAnnouncement('Local history cleared.');
     },
@@ -339,12 +396,12 @@ function Dashboard({ children }: { children: ReactNode }) {
       ? explain.data
       : undefined;
 
-  function preflightMeeting() {
+  function runCheck() {
     setAnnouncement(undefined);
     explain.reset();
-    preflight.mutate(nextMeeting, {
+    preflight.mutate(undefined, {
       onSuccess: (result) => {
-        setAnnouncement('Preflight complete. Device checks are up to date.');
+        setAnnouncement('PC check complete.');
         if (result.findings.length) explain.mutate(result.id);
       },
     });
@@ -356,7 +413,7 @@ function Dashboard({ children }: { children: ReactNode }) {
       const result =
         existing && session
           ? session
-          : await preflight.mutateAsync(nextMeeting);
+          : await preflight.mutateAsync();
       if (mode === 'fix') {
         if (!actionable(result.findings))
           throw new Error(
@@ -373,6 +430,14 @@ function Dashboard({ children }: { children: ReactNode }) {
   }
 
   function dismiss() {
+    if (dialog === 'fix') {
+      if (fixRun?.status === 'awaiting_approval') {
+        if (!approveFix.isPending && !cancelFix.isPending) cancelFix.mutate(fixRun);
+        return;
+      }
+      if (approveFix.isPending) return;
+      setFixRun(undefined);
+    }
     if (dialog === 'approval' && action?.approval_token) {
       if (!approve.isPending && !cancel.isPending) cancel.mutate(action);
       return;
@@ -397,14 +462,12 @@ function Dashboard({ children }: { children: ReactNode }) {
   const latestLabel = snapshot
     ? `${down || readiness.isError ? 'Last reading' : 'Updated'} ${timeLabel(snapshot.captured_at)}`
     : 'Waiting for measurements';
-  const displayTitle = today ? 'Your workday, ready.' : currentSection.label;
+  const displayTitle = today ? 'Your day' : currentSection.label;
   const sectionDescription: Record<string, string> = {
-    '/': 'Get set for your next meeting with a quick check-in on your device.',
-    '/readiness':
-      'Live measurements and the device checks that support your next meeting.',
-    '/activity': 'Preflights, findings, and approved actions on this device.',
-    '/insights':
-      'A clear view of meeting preparation and fixes on this device.',
+    '/': 'Your working time today, and help when a tool slows you down, even offline.',
+    '/readiness': 'Live readings from your PC, quick checks and safe fixes.',
+    '/activity': 'Everything itor noticed and did on this PC.',
+    '/team': 'Working time of the team, and the time lost to tools. Inside the company only.',
     '/privacy': 'See what itor processes and stores on your device.',
     '/settings': 'Local services, connection diagnostics, and demo controls.',
   };
@@ -575,19 +638,6 @@ function Dashboard({ children }: { children: ReactNode }) {
               <h1>{displayTitle}</h1>
               <p>{sectionDescription[path] ?? sectionDescription['/']}</p>
             </div>
-            {today && (
-              <button
-                className="button secondary new-meeting"
-                onClick={() => {
-                  addMeeting.reset();
-                  setDialog('meeting');
-                }}
-                disabled={down || status.isPending}
-              >
-                <Plus size={18} />
-                Add meeting
-              </button>
-            )}
             {path === '/readiness' && networkButton}
           </div>
           <p className="sr-only" aria-live="polite">
@@ -614,35 +664,32 @@ function Dashboard({ children }: { children: ReactNode }) {
           )}
           {today && (
             <>
+              <FirstLaunchNotice />
               <div className="dashboard-grid dashboard-top">
-                <MeetingHero
-                  meeting={nextMeeting}
-                  now={now}
-                  preflight={sessionForMeeting}
-                  join={join}
-                  joinBlocked={joinBlocked}
-                  down={down}
-                  loading={meetings.isPending}
-                  preparing={preflight.isPending}
-                  onPrepare={preflightMeeting}
-                  onChecklist={() =>
-                    busyReview.current?.scrollIntoView({ block: 'start' })
-                  }
-                  onAdd={() => {
-                    addMeeting.reset();
-                    setDialog('meeting');
-                  }}
+                <DayCard
+                  day={worktime.data}
+                  busy={blocked.isPending}
+                  down={down || worktime.isError}
+                  onBlocked={(value) => blocked.mutate(value)}
                 />
                 <ReadinessCard
                   state={state}
                   readiness={readiness.data ?? session}
-                  checked={Boolean(sessionForMeeting)}
+                  checked={Boolean(session)}
                   down={down || readiness.isError}
                   onReview={() => router.push('/readiness')}
                 />
               </div>
               <div className="dashboard-grid dashboard-body">
                 <div className="main-stack">
+                  <OfflineHelp
+                    connectivity={down ? undefined : connectivity}
+                    incident={incidents.data?.current}
+                    fixes={fixes.data}
+                    planning={planFix.isPending ? planFix.variables?.id : undefined}
+                    onAsk={() => setDialog('network')}
+                    onFix={(fix) => planFix.mutate(fix)}
+                  />
                   <section aria-labelledby="metrics-heading">
                     <div className="row-heading">
                       <div>
@@ -673,57 +720,10 @@ function Dashboard({ children }: { children: ReactNode }) {
                   <section
                     ref={busyReview}
                     className="stack"
-                    aria-label="Meeting preparation results"
+                    aria-label="PC check results"
                   >
                     {diagnostic}
                     {actionOutcomes}
-                    {sessionForMeeting && !isFixing && (
-                      <article className="card detail-card prep-card">
-                        <div className="section-heading">
-                          <div className="section-icon violet-icon">
-                            <Check size={21} />
-                          </div>
-                          <div>
-                            <h2>Meeting checklist</h2>
-                            <p>
-                              Preflight completed at{' '}
-                              {timeLabel(sessionForMeeting.completed_at)}
-                            </p>
-                          </div>
-                          <StateBadge state={state} />
-                        </div>
-                        <Checks
-                          readiness={readiness.data ?? sessionForMeeting}
-                          stale={down || readiness.isError}
-                        />
-                        {nextMeeting && (
-                          <div className="manual-checks">
-                            <h3>Your preparation</h3>
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={audioChecked[nextMeeting.id] ?? false}
-                                onChange={(event) =>
-                                  setAudioChecked({
-                                    ...audioChecked,
-                                    [nextMeeting.id]: event.target.checked,
-                                  })
-                                }
-                              />
-                              I tested my microphone and speakers in the meeting
-                              app.
-                            </label>
-                            <p>
-                              {join
-                                ? 'Meeting link available.'
-                                : joinBlocked
-                                  ? 'Meeting link saved. It is unavailable while offline.'
-                                  : 'This meeting has no join link.'}
-                            </p>
-                          </div>
-                        )}
-                      </article>
-                    )}
                   </section>
                   {(events.data?.length ?? 0) > 0 && (
                     <article className="card detail-card">
@@ -738,16 +738,7 @@ function Dashboard({ children }: { children: ReactNode }) {
                   )}
                 </div>
                 <div className="side-stack">
-                  <Upcoming
-                    meetings={sorted.slice(1)}
-                    now={now}
-                    stale={down}
-                    onAdd={() => {
-                      addMeeting.reset();
-                      setDialog('meeting');
-                    }}
-                  />
-                  <DailyTip />
+                  <ManagerView day={worktime.data} company={company.data} />
                   <article className="card connectivity-card">
                     <div className="panel-heading">
                       <h2>Connectivity</h2>
@@ -828,20 +819,29 @@ function Dashboard({ children }: { children: ReactNode }) {
               </section>
               {diagnostic}
               {actionOutcomes}
+              <OfflineHelp
+                always
+                connectivity={down ? undefined : connectivity}
+                incident={incidents.data?.current}
+                fixes={fixes.data}
+                planning={planFix.isPending ? planFix.variables?.id : undefined}
+                onAsk={() => setDialog('network')}
+                onFix={(fix) => planFix.mutate(fix)}
+              />
               <article className="card detail-card">
                 <div className="panel-heading">
-                  <h2>Readiness checklist</h2>
+                  <h2>PC checks</h2>
                   <button
                     className="button secondary"
                     disabled={down || preflight.isPending}
-                    onClick={preflightMeeting}
+                    onClick={runCheck}
                   >
                     {preflight.isPending ? (
                       <Spinner />
                     ) : (
                       <ActivityIcon size={17} />
                     )}
-                    Run preflight
+                    Check my PC
                   </button>
                 </div>
                 <Checks
@@ -858,9 +858,15 @@ function Dashboard({ children }: { children: ReactNode }) {
               </article>
             </div>
           )}
-          {path === '/insights' && (
+          {path === '/team' && (
             <div className="stack subpage">
-              <Insights insights={insights.data} stale={down || insights.isError} />
+              <TeamView
+                team={team.data}
+                company={company.data}
+                sending={sendCompany.isPending}
+                onSend={() => sendCompany.mutate()}
+                stale={down || team.isError}
+              />
             </div>
           )}
           {path === '/privacy' && (
@@ -889,15 +895,69 @@ function Dashboard({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      {dialog === 'meeting' && (
-        <Dialog title="Add a meeting" onDismiss={dismiss}>
-          <MeetingForm
-            now={now}
-            busy={addMeeting.isPending}
-            error={addMeeting.isError ? toMessage(addMeeting.error) : undefined}
-            onSave={addMeeting.mutate}
-            onCancel={dismiss}
-          />
+      {dialog === 'fix' && fixRun && (
+        <Dialog title="Approve a quick fix" onDismiss={dismiss}>
+          <div className="approval-body">
+            <div className="section-heading">
+              <div className="section-icon violet-icon">
+                <ShieldCheck size={22} />
+              </div>
+              <div>
+                <h3>{fixRun.title}</h3>
+                <p>{fixPick?.what_it_does}</p>
+              </div>
+            </div>
+            <dl className="approval-details">
+              <div>
+                <dt>Exact command</dt>
+                <dd>
+                  <code>{fixPick?.command}</code>
+                </dd>
+              </div>
+              {fixPick?.needs_admin && (
+                <div>
+                  <dt>Needs</dt>
+                  <dd>itor running as administrator</dd>
+                </div>
+              )}
+              {fixRun.status !== 'awaiting_approval' && (
+                <div>
+                  <dt>Result</dt>
+                  <dd>
+                    {fixRun.status === 'succeeded' ? 'Done. ' : `${fixRun.status}. `}
+                    Internet before: {fixRun.internet_before ?? '—'} · after: {fixRun.internet_after ?? '—'}
+                    {fixRun.message ? ` · ${fixRun.message}` : ''}
+                  </dd>
+                </div>
+              )}
+            </dl>
+            {fixError && <Notice kind="error">{fixError}</Notice>}
+            <div className="button-row dialog-actions">
+              {fixRun.status === 'awaiting_approval' ? (
+                <>
+                  <button
+                    className="button secondary"
+                    onClick={dismiss}
+                    disabled={approveFix.isPending || cancelFix.isPending}
+                  >
+                    Decline
+                  </button>
+                  <button
+                    className="button primary"
+                    onClick={() => approveFix.mutate(fixRun)}
+                    disabled={down || approveFix.isPending || cancelFix.isPending || !fixRun.approval_token}
+                  >
+                    {approveFix.isPending ? <Spinner /> : <ShieldCheck size={17} />}
+                    {approveFix.isPending ? 'Running…' : 'Approve and run'}
+                  </button>
+                </>
+              ) : (
+                <button className="button primary" onClick={dismiss}>
+                  Close
+                </button>
+              )}
+            </div>
+          </div>
         </Dialog>
       )}
       {dialog === 'network' && (
@@ -1006,7 +1066,7 @@ function Dashboard({ children }: { children: ReactNode }) {
               </div>
               <div>
                 <h3>Presenter workspace</h3>
-                <p>Sample meetings with live local telemetry.</p>
+                <p>Live readings from this PC, plus demo tools.</p>
               </div>
               <Badge tone="violet">Demo tools</Badge>
             </div>
@@ -1069,7 +1129,7 @@ function Dashboard({ children }: { children: ReactNode }) {
                 <p>
                   {demoConfirm === 'stop'
                     ? 'Stop the itor demonstration workload?'
-                    : 'Reset the demo schedule and stop any running demonstration workload?'}
+                    : 'Reset the demo and stop any running demonstration workload?'}
                 </p>
                 <div className="button-row">
                   <button
@@ -1103,6 +1163,13 @@ function Dashboard({ children }: { children: ReactNode }) {
               </button>
               <button
                 className="button secondary"
+                disabled={down || demoDay.isPending}
+                onClick={() => demoDay.mutate()}
+              >
+                {demoDay.isPending && <Spinner />}Add a demo morning
+              </button>
+              <button
+                className="button secondary"
                 disabled={down || !status.data?.demo.active || isFixing}
                 onClick={() => setDemoConfirm('stop')}
               >
@@ -1122,10 +1189,10 @@ function Dashboard({ children }: { children: ReactNode }) {
                 disabled={down || preflight.isPending}
                 onClick={() => {
                   setDialog(null);
-                  preflightMeeting();
+                  runCheck();
                 }}
               >
-                Run preflight
+                Check my PC
               </button>
               <button
                 className="button secondary"

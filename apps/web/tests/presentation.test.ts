@@ -1,32 +1,32 @@
-import { describe, expect, it } from 'vitest';
-import { connectivitySchema, meetingSchema, statusSchema } from '../lib/api';
+import { expect, it } from 'vitest';
+import { statusSchema, teamSchema, workDayViewSchema } from '../lib/api';
 import {
   actionPending,
+  causeLabel,
   currentReadiness,
-  meetingCountdown,
-  safeJoin,
-  upcomingMeetings,
+  duration,
+  providerLabel,
 } from '../lib/presentation';
 import {
-  connectivity,
-  makeMeeting,
+  explanation,
   readinessReport,
   statusReport,
+  team,
+  workDay,
 } from './fixtures';
 
-const now = Date.parse('2026-11-21T14:00:00Z');
+it('formats working time and reads the time clock', () => {
+  expect(duration(45 * 60)).toBe('45 min');
+  expect(duration(2 * 3600 + 5 * 60)).toBe('2h 05');
+  expect(duration(undefined)).toBe('—');
+  expect(causeLabel('offline')).toBe('Internet or cloud down');
+  expect(workDayViewSchema.parse(workDay()).paid_seconds_total).toBe(3 * 3600 + 15 * 60);
+  expect(teamSchema.parse(team()).rows[0].rank).toBe(1);
+});
 
-it('validates time-zone-aware meeting data and sorts upcoming meetings', () => {
-  const early = makeMeeting(now, 12);
-  const late = makeMeeting(now, 90);
-  const finished = makeMeeting(now, -31);
-  expect(meetingSchema.parse(early)).toEqual(early);
-  expect(
-    meetingSchema.safeParse({ ...early, start_at: '2026-11-21T14:12:00' })
-      .success,
-  ).toBe(false);
-  expect(upcomingMeetings([late, finished, early], now)).toEqual([early, late]);
-  expect(meetingCountdown(early, now)).toBe('In 12 min');
+it('says which AI answered', () => {
+  expect(providerLabel({ ...explanation(true), provider: 'claude' })).toBe('Claude · online');
+  expect(providerLabel(explanation(true))).toBe('Simple rules · works offline');
 });
 
 it('makes missing, checking, and disconnected readings explicit', () => {
@@ -50,36 +50,6 @@ it('keeps local services independent when an external probe fails', () => {
   expect(report.connectivity.internet.state).toBe('unreachable');
   expect(report.connectivity.agent.state).toBe('connected');
   expect(report.connectivity.ollama.state).toBe('connected');
-});
-
-describe('meeting launch', () => {
-  const url = 'https://meet.example/session';
-  it('accepts HTTPS links when network checks are available or unconfigured', () => {
-    expect(safeJoin(url)).toBe(url);
-    expect(
-      safeJoin(
-        url,
-        connectivitySchema.parse(connectivity({ simulated: true })),
-      ),
-    ).toBe(url);
-  });
-  it('blocks launch during actual loss of network connectivity', () => {
-    const interfaceAbsent = connectivitySchema.parse(
-      connectivity({ disconnected: true }),
-    );
-    const internetUnreachable = connectivitySchema.parse(
-      connectivity({ offline: true }),
-    );
-    expect(safeJoin(url, interfaceAbsent)).toBeNull();
-    expect(safeJoin(url, internetUnreachable)).toBeNull();
-    expect(safeJoin(url, undefined, true)).toBeNull();
-  });
-  it.each([
-    'javascript:alert(1)',
-    'http://meet.example',
-    'https://person:secret@meet.example',
-    'invalid',
-  ])('rejects unsafe link %s', (link) => expect(safeJoin(link)).toBeNull());
 });
 
 it('polls only approved operations that are still in flight', () => {

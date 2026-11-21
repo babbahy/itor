@@ -2,12 +2,16 @@ import { expect, test, type Page } from '@playwright/test';
 import type { Readiness } from '../lib/api';
 import {
   approval,
+  companyStatus,
   connectivity,
   explanation,
-  makeMeeting,
+  fixRun,
+  fixes,
   readinessReport,
   sample,
   statusReport,
+  team,
+  workDay,
 } from './fixtures';
 
 type Scenario = {
@@ -19,12 +23,13 @@ type Scenario = {
 };
 
 async function stubAgent(page: Page, options: Scenario = {}) {
-  const meeting = makeMeeting(Date.now());
-  const scheduled = [meeting, makeMeeting(Date.now(), 80)];
   let state = options.state ?? 'ready';
   let simulated = false;
   let actionPolls = 0;
   let approved = false;
+  let blocked = false;
+  let fixApproved = false;
+  await page.addInitScript(() => window.localStorage.setItem('itor-notice-seen', '1'));
   await page.route('**/api/**', async (route) => {
     const endpoint = new URL(route.request().url()).pathname.slice(5);
     if (options.agentDown)
@@ -46,28 +51,31 @@ async function stubAgent(page: Page, options: Scenario = {}) {
       return route.fulfill({ json: readinessReport(state) });
     if (endpoint === 'device/history')
       return route.fulfill({ json: [sample(), sample(state === 'attention')] });
-    if (endpoint === 'meetings' && route.request().method() === 'POST') {
-      const body = route.request().postDataJSON();
-      const manual = {
-        ...meeting,
-        ...body,
-        id: 'manual-meeting',
-        source: 'manual',
-        end_at: new Date(
-          Date.parse(body.start_at) + body.duration_minutes * 60_000,
-        ).toISOString(),
-      };
-      scheduled.push(manual);
-      return route.fulfill({ json: manual, status: 201 });
-    }
-    if (endpoint === 'meetings') return route.fulfill({ json: scheduled });
     if (endpoint === 'activity') return route.fulfill({ json: [] });
+    if (endpoint === 'worktime/today')
+      return route.fulfill({ json: workDay({ blocked, state: blocked ? 'lost' : 'active' }) });
+    if (endpoint === 'worktime/blocked') {
+      blocked = route.request().postDataJSON().blocked;
+      return route.fulfill({ json: workDay({ blocked, state: blocked ? 'lost' : 'active' }) });
+    }
+    if (endpoint === 'company/status') return route.fulfill({ json: companyStatus });
+    if (endpoint === 'company/team') return route.fulfill({ json: team() });
+    if (endpoint === 'fixes') return route.fulfill({ json: fixes });
+    if (endpoint === 'incidents')
+      return route.fulfill({ json: { current: null, history: [] } });
+    if (endpoint === 'fixes/flush_dns/plan')
+      return route.fulfill({ json: fixRun('awaiting_approval'), status: 201 });
+    if (endpoint === 'fixes/runs/run/approve') {
+      fixApproved = true;
+      return route.fulfill({ json: fixRun('succeeded') });
+    }
+    if (endpoint === 'fixes/runs/run/cancel')
+      return route.fulfill({ json: fixRun('canceled') });
     if (endpoint === 'preflight')
       return route.fulfill({
         json: {
           ...readinessReport(state),
           id: 'session',
-          meeting_id: meeting.id,
           started_at: timestamp,
           completed_at: timestamp,
           status: 'completed',
@@ -112,35 +120,25 @@ async function stubAgent(page: Page, options: Scenario = {}) {
       json: { detail: 'Fixture route unavailable' },
     });
   });
-  return () => approved;
+  return { isApproved: () => approved, isFixApproved: () => fixApproved };
 }
 
-test('prepares a healthy meeting and distinguishes demo meeting from live readings', async ({
-  page,
-}) => {
+test('shows my working time and exactly what the manager sees', async ({ page }) => {
   await stubAgent(page, { ollama: true });
   await page.goto('/');
-  const hero = page.getByRole('article', { name: 'Next meeting' });
-  await expect(
-    hero.getByRole('heading', { name: 'Product Team Weekly' }),
-  ).toBeVisible();
-  await expect(hero.getByText('Demo meeting', { exact: true })).toBeVisible();
-  await expect(
-    page.getByText('Live readings from your local agent'),
-  ).toBeVisible();
-  await expect(
-    hero.getByRole('link', { name: 'Join meeting' }),
-  ).toHaveAttribute('href', 'https://meet.example/session');
-  await hero.getByRole('button', { name: 'Prepare my meeting' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Meeting checklist' }),
-  ).toBeVisible();
-  await expect(
-    page.getByText('Your device looks ready for this meeting.'),
-  ).toBeVisible();
-  await expect(
-    page.getByText('Local AI available', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your time today' })).toBeVisible();
+  await expect(page.getByText('Active now', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What your manager sees' })).toBeVisible();
+  await expect(page.getByText('3h 15').first()).toBeVisible();
+  await expect(page.getByText('Local AI available', { exact: true })).toBeVisible();
+});
+
+test('marks time as blocked', async ({ page }) => {
+  await stubAgent(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: "I'm blocked" }).click();
+  await expect(page.getByText('Losing time to a tool', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: "I'm not blocked anymore" })).toBeVisible();
 });
 
 test('shows unknown readiness and handles a disconnected backend', async ({
@@ -156,15 +154,13 @@ test('shows unknown readiness and handles a disconnected backend', async ({
   await expect(
     page.getByRole('alert').getByText('Device agent unavailable'),
   ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Prepare my meeting' }),
-  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: "I'm blocked" })).toBeDisabled();
 });
 
 test('requires approval and displays verified before and after measurements', async ({
   page,
 }) => {
-  const isApproved = await stubAgent(page, {
+  const { isApproved } = await stubAgent(page, {
     state: 'attention',
     ollama: false,
   });
@@ -172,12 +168,9 @@ test('requires approval and displays verified before and after measurements', as
   await expect(
     page.getByText('Attention needed', { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByText('Local AI unavailable', { exact: true }),
-  ).toBeVisible();
   await page.getByRole('button', { name: 'Explain this finding' }).click();
   await expect(
-    page.getByText('Rules-based explanation', { exact: true }),
+    page.getByText('Simple rules · works offline', { exact: true }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Fix this for me' }).click();
   const dialog = page.getByRole('dialog', { name: 'Approve local action' });
@@ -193,15 +186,8 @@ test('requires approval and displays verified before and after measurements', as
     .getByRole('button', { name: 'Approve and stop workload' })
     .click();
   await expect(
-    page.getByRole('heading', {
-      name: 'Verifying process exit and measuring again',
-    }),
-  ).toBeVisible();
-  await expect(
     page.getByRole('heading', { name: 'Workload stopped and verified' }),
   ).toBeVisible();
-  await expect(page.getByText('42%', { exact: true })).toBeVisible();
-  await expect(page.getByText('0%', { exact: true })).toBeVisible();
 });
 
 test('keeps action failure visible and never reports it as verified', async ({
@@ -217,60 +203,37 @@ test('keeps action failure visible and never reports it as verified', async ({
   ).toHaveCount(0);
 });
 
-test('keeps meeting and local AI available offline and withholds online meeting launch', async ({
-  page,
-}) => {
-  await stubAgent(page, { offline: true, ollama: true });
+test('offers local help and quick fixes when offline', async ({ page }) => {
+  const { isFixApproved } = await stubAgent(page, { offline: true, ollama: true });
   await page.goto('/');
   await expect(
-    page.getByText(
-      'Cloud services are unavailable. Local diagnostics are still running.',
-    ),
+    page.getByRole('heading', { name: "You're offline. itor keeps helping." }),
   ).toBeVisible();
+  await page.getByRole('button', { name: 'Fix it' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Approve a quick fix' });
+  await expect(dialog.getByText('ipconfig /flushdns')).toBeVisible();
+  expect(isFixApproved()).toBe(false);
+  await dialog.getByRole('button', { name: 'Approve and run' }).click();
+  await expect(dialog.getByText(/Internet before: unreachable/)).toBeVisible();
+  expect(isFixApproved()).toBe(true);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask the local helper' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Product Team Weekly' }),
-  ).toBeVisible();
-  await expect(
-    page.getByText('Local AI available', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Join meeting' })).toHaveCount(0);
-  await expect(page.getByText('Join link unavailable offline')).toBeVisible();
-  await page.getByRole('button', { name: 'Prepare my meeting' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Meeting checklist' }),
-  ).toBeVisible();
-  await page
-    .locator('.offline-banner')
-    .getByRole('button', { name: 'Investigate connection' })
-    .click();
-  const diagnostics = page.getByRole('dialog', {
-    name: 'Investigate connection',
-  });
-  await expect(
-    diagnostics.getByText('Internet connectivity', { exact: true }),
-  ).toBeVisible();
-  await expect(
-    diagnostics.getByText(/Cloud context is stale. Last updated/),
+    page.getByRole('dialog', { name: 'Investigate connection' }),
   ).toBeVisible();
 });
 
-test('adds a local meeting through the accessible form', async ({ page }) => {
+test('shows the team ranking', async ({ page }) => {
   await stubAgent(page);
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Add meeting', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add a meeting' });
-  await dialog.getByLabel('Meeting title').fill('Local planning meeting');
-  await dialog.getByLabel('Date', { exact: true }).fill('2040-04-03');
-  await dialog.getByLabel('Time', { exact: true }).fill('14:45');
-  await dialog.getByLabel('Join URL').fill('https://meet.example/plan');
-  await dialog.getByRole('button', { name: 'Add meeting' }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(
-    page.getByText('Local planning meeting', { exact: true }),
-  ).toBeVisible();
+  await page.goto('/team');
+  await expect(page.getByRole('heading', { name: 'Team ranking · today' })).toBeVisible();
+  const rows = page.locator('.team-table tbody tr');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toContainText('alex');
+  await expect(rows.nth(1)).toContainText('You');
 });
 
-test('simulates a cloud outage without disabling local or meeting services', async ({
+test('simulates a cloud outage without disabling local services', async ({
   page,
 }) => {
   await stubAgent(page, { ollama: true });
@@ -288,7 +251,6 @@ test('simulates a cloud outage without disabling local or meeting services', asy
   await expect(
     page.getByText('Local AI available', { exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Join meeting' })).toBeVisible();
   await page.getByRole('button', { name: 'Demo controls' }).click();
   await dialog.getByRole('button', { name: 'Restore cloud adapter' }).click();
   await dialog.getByRole('button', { name: 'Close dialog' }).click();

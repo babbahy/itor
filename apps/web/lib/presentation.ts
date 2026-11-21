@@ -1,24 +1,18 @@
 import {
   Activity,
-  ChartNoAxesCombined,
+  Clock,
   Gauge,
-  House,
   Settings,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
-import type {
-  Action,
-  Connectivity,
-  Meeting,
-  Readiness,
-  ServiceStatus,
-} from './api';
+import type { Action, Diagnosis, Readiness, ServiceStatus } from './api';
 
 export const sections = [
-  { href: '/', label: 'Today', icon: House },
-  { href: '/readiness', label: 'Device readiness', icon: Gauge },
-  { href: '/activity', label: 'Activity', icon: Activity },
-  { href: '/insights', label: 'Insights', icon: ChartNoAxesCombined },
+  { href: '/', label: 'My day', icon: Clock },
+  { href: '/readiness', label: 'My PC', icon: Gauge },
+  { href: '/activity', label: 'Log', icon: Activity },
+  { href: '/team', label: 'Team', icon: Users },
   { href: '/privacy', label: 'Privacy', icon: ShieldCheck },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -31,7 +25,7 @@ export const readinessCopy: Record<
   ready: {
     title: 'Ready',
     tone: 'green',
-    description: 'Your device looks ready for this meeting.',
+    description: 'Your PC looks fine. Nothing is slowing you down.',
   },
   attention: {
     title: 'Attention needed',
@@ -41,7 +35,7 @@ export const readinessCopy: Record<
   not_ready: {
     title: 'Not ready',
     tone: 'amber',
-    description: 'A critical check needs attention before joining.',
+    description: 'Something is blocking your work. itor can help.',
   },
   unknown: {
     title: 'Checks incomplete',
@@ -79,46 +73,6 @@ export function currentReadiness(
   return readiness?.readiness ?? 'unknown';
 }
 
-export function upcomingMeetings(meetings: Meeting[], now: number) {
-  return meetings
-    .filter((meeting) => Date.parse(meeting.end_at) > now)
-    .sort(
-      (first, second) =>
-        Date.parse(first.start_at) - Date.parse(second.start_at),
-    );
-}
-
-export function meetingCountdown(meeting: Meeting, now: number) {
-  const minutes = Math.ceil((Date.parse(meeting.start_at) - now) / 60_000);
-  if (minutes <= 0) return 'In progress';
-  if (minutes < 60) return `In ${minutes} min`;
-  if (minutes < 180) return `In ${Math.ceil(minutes / 60)} hr`;
-  return dateLabel(meeting.start_at, { month: 'short', day: 'numeric' });
-}
-
-export function safeJoin(
-  url: string | null | undefined,
-  connectivity?: Connectivity,
-  agentDown = false,
-): string | null {
-  if (
-    !url ||
-    agentDown ||
-    connectivity?.internet.state === 'unreachable' ||
-    connectivity?.internet.state === 'disconnected' ||
-    connectivity?.network_interface.state === 'disconnected'
-  )
-    return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' && !parsed.username && !parsed.password
-      ? parsed.href
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export const actionPending = (status: Action['status']) =>
   ['approved', 'executing', 'verifying'].includes(status);
 export const actionable = (findings: Readiness['findings']) =>
@@ -137,3 +91,26 @@ export const gib = (bytes: number | null | undefined) =>
   bytes == null ? 'Unavailable' : `${(bytes / 2 ** 30).toFixed(1)} GB`;
 export const toMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Something went wrong. Try again.';
+
+/** 2h 05m style, for seconds. */
+export function duration(seconds: number | null | undefined) {
+  if (seconds == null) return '—';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}`;
+}
+
+export const causeLabels: Record<string, string> = {
+  blocked: "Said \"I'm blocked\"",
+  offline: 'Internet or cloud down',
+  pc_overloaded: 'PC overloaded',
+  frozen_app: 'App not responding',
+};
+export const causeLabel = (cause: string) => causeLabels[cause] ?? cause;
+
+export function providerLabel(diagnosis: Diagnosis | undefined) {
+  if (!diagnosis) return undefined;
+  if (diagnosis.provider === 'claude') return 'Claude · online';
+  if (diagnosis.provider === 'ollama') return `${diagnosis.model ?? 'Qwen'} · Local AI, works offline`;
+  return 'Simple rules · works offline';
+}

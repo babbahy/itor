@@ -71,7 +71,9 @@ FIXES: dict[str, FixSpec] = {
 
 def run_command(command: list[str]) -> tuple[bool, str]:
     try:
-        done = subprocess.run(command, capture_output=True, text=True, timeout=60,
+        # Windows tools print in the console code page ("oem"), e.g. French accents.
+        done = subprocess.run(command, capture_output=True, text=True, timeout=60, errors="replace",
+                              encoding="oem" if sys.platform == "win32" else None,
                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.TimeoutExpired) as error:
         return False, str(error)[:300]
