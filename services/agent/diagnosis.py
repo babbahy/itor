@@ -218,7 +218,8 @@ system_prompt = (
     "For network issues, suggest only safe manual checks in system settings, through IT, or through itor. "
     "Never suggest resetting adapters, changing DNS/firewall settings, or terminating VPNs or other apps. "
     "Use the approved local action ID only when listed, otherwise return null. "
-    "Write concise plain text fields using the supplied JSON schema."
+    "Keep every field to one short sentence, and give at most two possible causes. "
+    "Write plain text fields using the supplied JSON schema."
 )
 
 # Generated interpretations cannot introduce unsupported numerical facts or links.
@@ -273,7 +274,7 @@ class OllamaDiagnosisProvider:
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps({"observations": evidence, "output_schema": schema})},
+                {"role": "user", "content": json.dumps({"observations": evidence})},
             ],
             "stream": False,
             "think": False,
