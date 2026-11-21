@@ -234,7 +234,6 @@ export function OfflineHelp({
             <button
               className="button secondary"
               disabled={!fix.supported || Boolean(planning)}
-              title={fix.supported ? fix.command : 'Only on Windows'}
               onClick={() => onFix(fix)}
             >
               {planning === fix.id ? <Spinner /> : <Wrench size={16} />}
