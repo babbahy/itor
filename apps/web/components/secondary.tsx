@@ -151,7 +151,7 @@ export function Privacy({
       label: 'Device measurements',
       body:
         privacy?.telemetry_sources?.join(' · ') ??
-        'System CPU, available memory, disk capacity, network interface state, and Spark Ready workload metrics.',
+        'System CPU, available memory, disk capacity, network interface state, and itor workload metrics.',
       value: 'Local agent',
     },
     {
@@ -184,7 +184,7 @@ export function Privacy({
         <div>
           <h2>Private by design</h2>
           <p>
-            Spark Ready uses aggregate device readings and the meetings you add.
+            itor uses aggregate device readings and the meetings you add.
             Your files, screen, and browsing history stay outside its data
             collection.
           </p>
@@ -254,7 +254,7 @@ export function Settings({
           </div>
           <div>
             <h2>Providers</h2>
-            <p>Spark Ready is a local prototype for the Nexthink ecosystem.</p>
+            <p>itor is a local prototype for the Nexthink ecosystem.</p>
           </div>
         </div>
         <ul className="provider-list">

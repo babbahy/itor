@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const sharedServer = process.env.SPARK_TEST_BASE_URL;
+const sharedServer = process.env.ITOR_TEST_BASE_URL;
 const baseURL = sharedServer ?? 'http://127.0.0.1:3101';
 
 export default defineConfig({

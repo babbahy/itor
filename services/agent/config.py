@@ -6,7 +6,7 @@ from pathlib import Path
 @dataclass(frozen=True)
 class Settings:
     api_key: str = ""
-    db_path: Path = Path(".spark-ready/local.sqlite3")
+    db_path: Path = Path(".itor/local.sqlite3")
     retention_days: int = 7
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3.5:4b"
@@ -25,30 +25,30 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         settings = cls(
-            api_key=getenv("SPARK_AGENT_KEY", ""),
-            db_path=Path(getenv("SPARK_DB_PATH", ".spark-ready/local.sqlite3")),
-            retention_days=int(getenv("SPARK_RETENTION_DAYS", "7")),
-            ollama_url=getenv("SPARK_OLLAMA_URL", "http://127.0.0.1:11434"),
-            ollama_model=getenv("SPARK_OLLAMA_MODEL", "qwen3.5:4b"),
-            ollama_timeout=float(getenv("SPARK_OLLAMA_TIMEOUT_SECONDS", "60")),
-            internet_probe_url=getenv("SPARK_INTERNET_PROBE_URL") or None,
-            internet_expected_status=int(getenv("SPARK_INTERNET_EXPECTED_STATUS", "204")),
-            connectivity_interval=float(getenv("SPARK_CONNECTIVITY_INTERVAL_SECONDS", "30")),
-            connectivity_timeout=float(getenv("SPARK_CONNECTIVITY_TIMEOUT_SECONDS", "3")),
-            connectivity_stability=float(getenv("SPARK_CONNECTIVITY_STABILITY_SECONDS", "5")),
-            cpu_threshold=float(getenv("SPARK_CPU_WARNING_PERCENT", "80")),
-            cpu_window=float(getenv("SPARK_CPU_WINDOW_SECONDS", "6")),
-            demo_seconds=int(getenv("SPARK_DEMO_WORKLOAD_SECONDS", "180")),
-            sample_interval=float(getenv("SPARK_TELEMETRY_INTERVAL_SECONDS", "2")),
+            api_key=getenv("ITOR_AGENT_KEY", ""),
+            db_path=Path(getenv("ITOR_DB_PATH", ".itor/local.sqlite3")),
+            retention_days=int(getenv("ITOR_RETENTION_DAYS", "7")),
+            ollama_url=getenv("ITOR_OLLAMA_URL", "http://127.0.0.1:11434"),
+            ollama_model=getenv("ITOR_OLLAMA_MODEL", "qwen3.5:4b"),
+            ollama_timeout=float(getenv("ITOR_OLLAMA_TIMEOUT_SECONDS", "60")),
+            internet_probe_url=getenv("ITOR_INTERNET_PROBE_URL") or None,
+            internet_expected_status=int(getenv("ITOR_INTERNET_EXPECTED_STATUS", "204")),
+            connectivity_interval=float(getenv("ITOR_CONNECTIVITY_INTERVAL_SECONDS", "30")),
+            connectivity_timeout=float(getenv("ITOR_CONNECTIVITY_TIMEOUT_SECONDS", "3")),
+            connectivity_stability=float(getenv("ITOR_CONNECTIVITY_STABILITY_SECONDS", "5")),
+            cpu_threshold=float(getenv("ITOR_CPU_WARNING_PERCENT", "80")),
+            cpu_window=float(getenv("ITOR_CPU_WINDOW_SECONDS", "6")),
+            demo_seconds=int(getenv("ITOR_DEMO_WORKLOAD_SECONDS", "180")),
+            sample_interval=float(getenv("ITOR_TELEMETRY_INTERVAL_SECONDS", "2")),
         )
         if not settings.api_key:
-            raise RuntimeError("Set SPARK_AGENT_KEY before starting the device agent.")
+            raise RuntimeError("Set ITOR_AGENT_KEY before starting the device agent.")
         if not 1 <= settings.retention_days <= 365:
-            raise ValueError("SPARK_RETENTION_DAYS must be between 1 and 365.")
+            raise ValueError("ITOR_RETENTION_DAYS must be between 1 and 365.")
         if not 20 <= settings.cpu_threshold <= 100 or not 2 <= settings.cpu_window <= 60:
             raise ValueError("CPU warning must be 20–100 percent over 2–60 seconds.")
         if not 1 <= settings.sample_interval <= 30:
-            raise ValueError("SPARK_TELEMETRY_INTERVAL_SECONDS must be between 1 and 30.")
+            raise ValueError("ITOR_TELEMETRY_INTERVAL_SECONDS must be between 1 and 30.")
         if not 1 <= settings.demo_seconds <= 180:
-            raise ValueError("SPARK_DEMO_WORKLOAD_SECONDS must be between 1 and 180.")
+            raise ValueError("ITOR_DEMO_WORKLOAD_SECONDS must be between 1 and 180.")
         return settings

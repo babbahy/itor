@@ -152,7 +152,7 @@ class Agent:
             if not stopped and self.workload.status().active:
                 raise WorkloadError("The demo workload could not be stopped.")
             await asyncio.to_thread(self.telemetry.capture)
-            self.store.event("demo_stopped", "Demo workload stopped", "The demo control ended the Spark Ready-owned workload.")
+            self.store.event("demo_stopped", "Demo workload stopped", "The demo control ended the itor-owned workload.")
         return self.workload.status()
 
 
@@ -176,7 +176,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             finally:
                 await asyncio.to_thread(service.workload.close)
 
-    app = FastAPI(title="Spark Ready Device Agent", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+    app = FastAPI(title="itor Device Agent", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
 
     @app.middleware("http")
@@ -186,13 +186,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
-    async def authorized(request: Request, x_spark_key: Annotated[str | None, Header()] = None) -> Agent:
+    async def authorized(request: Request, x_itor_key: Annotated[str | None, Header()] = None) -> Agent:
         service: Agent = request.app.state.agent
-        if (not service.settings.api_key or x_spark_key is None or
-                not compare_digest(service.settings.api_key.encode(), x_spark_key.encode())):
+        if (not service.settings.api_key or x_itor_key is None or
+                not compare_digest(service.settings.api_key.encode(), x_itor_key.encode())):
             raise HTTPException(401, "A valid local agent key is required.")
         if request.method not in {"GET", "HEAD"} and "origin" in request.headers:
-            raise HTTPException(403, "Send browser requests through the Spark Ready application.")
+            raise HTTPException(403, "Send browser requests through the itor application.")
         return service
 
     LocalAgent = Annotated[Agent, Depends(authorized)]
@@ -321,7 +321,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             service.check_demo_idle()
             service.workload.start()
             await asyncio.to_thread(service.telemetry.capture)
-            service.store.event("demo_started", "Demo workload started", "A time-limited Spark Ready child process was started.")
+            service.store.event("demo_started", "Demo workload started", "A time-limited itor child process was started.")
             return service.workload.status()
 
     @app.post("/api/demo/stop")
@@ -373,7 +373,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def privacy(service: LocalAgent) -> PrivacyReport:
         external = ["One approved HTTPS connectivity endpoint and its DNS hostname"] if service.settings.internet_probe_url else []
         return PrivacyReport(model=service.settings.ollama_model, retention_days=service.settings.retention_days,
-                             telemetry_sources=["Operating system CPU, memory, disk and network summaries", "Spark Ready-owned demo workload"],
+                             telemetry_sources=["Operating system CPU, memory, disk and network summaries", "itor-owned demo workload"],
                              stored_data=["Meetings and notes", "Preflight findings and diagnostic summaries", "Action approvals, outcomes and connectivity changes"],
                              external_connections=external, sync=service.sync.status())
 

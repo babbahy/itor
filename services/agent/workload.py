@@ -84,9 +84,12 @@ class WorkloadManager:
                 raise WorkloadError("A demo workload is already running.")
             script = Path(__file__).with_name("demo_worker.py").resolve()
             env = {"SystemRoot": os.environ["SystemRoot"]} if sys.platform == "win32" and "SystemRoot" in os.environ else {}
+            # On Windows, a venv's python.exe is only a launcher that starts the real Python as its own child.
+            # Run the real Python directly, so we measure and stop the actual worker (it only needs the stdlib).
+            python = getattr(sys, "_base_executable", None) if sys.platform == "win32" else None
             try:
                 handle = subprocess.Popen(
-                    [sys.executable, "-I", "-S", str(script), str(self.duration)],
+                    [python or sys.executable, "-I", "-S", str(script), str(self.duration)],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
                 )
             except OSError as exc:

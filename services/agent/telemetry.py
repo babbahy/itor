@@ -60,7 +60,7 @@ class LocalTelemetryProvider:
             except (OSError, psutil.Error, NotImplementedError):
                 snapshot.errors.append("Memory measurement unavailable.")
             try:
-                disk = psutil.disk_usage(Path.home())
+                disk = psutil.disk_usage(str(Path.home()))
                 snapshot.disk_percent = disk.percent
                 snapshot.disk_total = disk.total
                 snapshot.disk_free = disk.free

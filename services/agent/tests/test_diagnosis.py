@@ -26,7 +26,7 @@ FINDING = {
 }
 VALID = {
     "headline": "A background workload needs attention",
-    "explanation": "The Spark Ready workload is using processing resources.",
+    "explanation": "The itor workload is using processing resources.",
     "possible_causes": ["The controlled demo workload is active."],
     "potential_impact": "Your meeting app may have less headroom.",
     "recommended_action_id": "stop_demo_workload",
@@ -101,7 +101,7 @@ def test_network_guidance_keeps_simulation_explicit_and_read_only():
         try:
             report = await manager.simulate_cloud(True)
             result = await RulesBasedDiagnosisProvider().explain(
-                [], network=report, question="Can I still use Spark Ready?",
+                [], network=report, question="Can I still use itor?",
             )
             assert result.headline == "Local preparation remains available"
             assert any("simulating" in text for text in result.possible_causes)

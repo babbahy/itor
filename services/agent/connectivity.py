@@ -118,9 +118,9 @@ def normalize_probe_url(url: str) -> str:
         parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
         or parsed.password is not None or parsed.query or parsed.fragment
     ):
-        raise ValueError("SPARK_INTERNET_PROBE_URL must be an HTTPS URL without credentials, query or fragment")
+        raise ValueError("ITOR_INTERNET_PROBE_URL must be an HTTPS URL without credentials, query or fragment")
     if parsed.port is not None and parsed.port < 1:
-        raise ValueError("SPARK_INTERNET_PROBE_URL must use a valid HTTPS port")
+        raise ValueError("ITOR_INTERNET_PROBE_URL must use a valid HTTPS port")
     return url
 
 
@@ -234,7 +234,7 @@ class ConnectivityManager:
         self.internet_probe_url = normalize_probe_url(internet_probe_url) if internet_probe_url else None
         self.internet_expected_status = internet_expected_status
         if not 200 <= internet_expected_status < 300:
-            raise ValueError("SPARK_INTERNET_EXPECTED_STATUS must be a successful 2xx response code")
+            raise ValueError("ITOR_INTERNET_EXPECTED_STATUS must be a successful 2xx response code")
         self.nexthink_probe = nexthink_probe
         self.probe_interval = max(probe_interval, 1)
         self.timeout = max(timeout, 0.1)
@@ -387,7 +387,7 @@ class ConnectivityManager:
     def _report_task_error(task: asyncio.Task[None]) -> None:
         if not task.cancelled() and (error := task.exception()) is not None:
             asyncio.get_running_loop().call_exception_handler(
-                {"message": "Spark Ready connectivity update failed", "exception": error}
+                {"message": "itor connectivity update failed", "exception": error}
             )
 
     def _start_checks(self, include_dns: bool = False) -> list[asyncio.Task[None]]:

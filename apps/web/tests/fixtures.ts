@@ -176,7 +176,7 @@ export function approval(status: Action['status']): Action {
     action_id: 'stop_demo_workload',
     status,
     title: 'Stop demo workload',
-    scope: 'Stop the temporary workload created by Spark Ready.',
+    scope: 'Stop the temporary workload created by itor.',
     expected_result: 'Release the CPU time used by this workload.',
     side_effects: 'Ends the current demo run.',
     expires_at: new Date(Date.now() + 120_000).toISOString(),

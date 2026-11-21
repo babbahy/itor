@@ -18,7 +18,7 @@ from services.agent.telemetry import FixtureTelemetryProvider, LocalTelemetryPro
 from services.agent.workload import WorkloadError, WorkloadManager
 
 KEY = "local-key-for-pytest-only"
-HEADERS = {"X-Spark-Key": KEY}
+HEADERS = {"X-Itor-Key": KEY}
 BASE_URL = "http://127.0.0.1:8765"
 
 
