@@ -215,7 +215,7 @@ export function AgentUnavailable() {
       <div>
         <strong>Device agent unavailable</strong>
         <p>
-          Start the local Spark Ready agent. The dashboard reconnects
+          Start the local itor agent. The dashboard reconnects
           automatically.
         </p>
       </div>

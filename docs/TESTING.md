@@ -23,11 +23,11 @@ make smoke
 
 With Ollama running and the configured model installed, use `.venv/bin/python scripts/smoke-test.py flow --expect-ollama` to require a validated local model explanation. Add `--expect-offline` to require observed network loss in the same run.
 
-The live flow starts a bounded Spark Ready workload, uses a local meeting, observes CPU activity, runs preflight and diagnosis, verifies approval before execution, confirms process exit, and verifies repeated approval does not rerun it.
+The live flow starts a bounded itor workload, uses a local meeting, observes CPU activity, runs preflight and diagnosis, verifies approval before execution, confirms process exit, and verifies repeated approval does not rerun it.
 
 ## Offline smoke
 
-After setup, use a laptop with Internet access disconnected or an isolated network namespace with loopback enabled. Leave both Spark Ready services running locally. Start the app and run `make smoke-offline` to require a measured connection loss and exercise the local flow. In the browser, check live CPU and memory, prepare a cached meeting, investigate the connection, and verify the approved workload stop. If Ollama and the model are installed, keep Ollama running in the same network environment and verify the diagnosis provider. Restore the connection and check that the UI updates and that completed actions stay completed. With no authorized HTTPS probe configured, internet status can remain unknown while passive interface observations are available.
+After setup, use a laptop with Internet access disconnected or an isolated network namespace with loopback enabled. Leave both itor services running locally. Start the app and run `make smoke-offline` to require a measured connection loss and exercise the local flow. In the browser, check live CPU and memory, prepare a cached meeting, investigate the connection, and verify the approved workload stop. If Ollama and the model are installed, keep Ollama running in the same network environment and verify the diagnosis provider. Restore the connection and check that the UI updates and that completed actions stay completed. With no authorized HTTPS probe configured, internet status can remain unknown while passive interface observations are available.
 
 The **Simulate cloud unavailability** control exercises provider failure and recovery. It leaves the laptop’s network settings intact. Test it separately from a real network isolation check.
 
@@ -37,11 +37,11 @@ On Linux with unprivileged user namespaces enabled, the following starts the alr
 make build
 unshare -Urn bash
 ip link set lo up
-SPARK_DB_PATH="$(mktemp -d)/local.sqlite3" ./scripts/dev.sh start &
-spark_launcher=$!
+ITOR_DB_PATH="$(mktemp -d)/local.sqlite3" ./scripts/dev.sh start &
+itor_launcher=$!
 # After both servers start
 make smoke-offline
-kill "$spark_launcher"
+kill "$itor_launcher"
 exit
 ```
 

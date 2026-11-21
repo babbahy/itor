@@ -1,1 +1,1 @@
-"""Spark Ready's loopback-only device agent."""
+"""itor's loopback-only device agent."""

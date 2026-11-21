@@ -85,10 +85,10 @@ async function forward(method: keyof typeof routes, request: NextRequest, contex
   let web: URL;
   let agent: URL;
   try {
-    web = localOrigin(process.env.SPARK_WEB_ORIGIN || "http://127.0.0.1:3000");
-    agent = localOrigin(process.env.SPARK_AGENT_URL || "http://127.0.0.1:8765");
+    web = localOrigin(process.env.ITOR_WEB_ORIGIN || "http://127.0.0.1:3000");
+    agent = localOrigin(process.env.ITOR_AGENT_URL || "http://127.0.0.1:8765");
   } catch {
-    return failure(503, "Spark Ready needs valid loopback addresses for the app and device agent.");
+    return failure(503, "itor needs valid loopback addresses for the app and device agent.");
   }
   const requestOrigin = request.headers.get("origin");
   const fetchSite = request.headers.get("sec-fetch-site");
@@ -98,13 +98,13 @@ async function forward(method: keyof typeof routes, request: NextRequest, contex
     (requestOrigin !== null && requestOrigin !== web.origin) ||
     (method !== "GET" && requestOrigin !== web.origin)
   ) {
-    return failure(403, "Open Spark Ready from its configured local address.");
+    return failure(403, "Open itor from its configured local address.");
   }
 
-  const key = process.env.SPARK_AGENT_KEY;
-  if (!key) return failure(503, "Start Spark Ready with the local launcher to connect the device agent.");
+  const key = process.env.ITOR_AGENT_KEY;
+  if (!key) return failure(503, "Start itor with the local launcher to connect the device agent.");
 
-  const headers = new Headers({ Accept: "application/json", "X-Spark-Key": key });
+  const headers = new Headers({ Accept: "application/json", "X-Itor-Key": key });
   let body: Uint8Array<ArrayBuffer> | undefined;
   if (method === "POST") {
     if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {

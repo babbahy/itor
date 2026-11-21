@@ -36,10 +36,10 @@ def origin(value: str) -> tuple[str, int, str]:
         or parsed.query
         or parsed.fragment
     ):
-        raise ValueError("Spark Ready endpoints must be HTTP loopback origins.")
+        raise ValueError("itor endpoints must be HTTP loopback origins.")
     port = parsed.port if parsed.port is not None else 80
     if port == 0:
-        raise ValueError("Choose a fixed nonzero port for each Spark Ready endpoint.")
+        raise ValueError("Choose a fixed nonzero port for each itor endpoint.")
     authority = host if port == 80 else f"{host}:{port}"
     return host, port, f"http://{authority}"
 
@@ -60,9 +60,9 @@ def environment() -> dict[str, str]:
                 value = value[1:-1]
             values[key] = value
     values.update(os.environ)
-    values.setdefault("SPARK_WEB_ORIGIN", DEFAULT_WEB_ORIGIN)
-    values.setdefault("SPARK_AGENT_URL", DEFAULT_AGENT_URL)
-    values.setdefault("SPARK_AGENT_KEY", secrets.token_urlsafe(32))
+    values.setdefault("ITOR_WEB_ORIGIN", DEFAULT_WEB_ORIGIN)
+    values.setdefault("ITOR_AGENT_URL", DEFAULT_AGENT_URL)
+    values.setdefault("ITOR_AGENT_KEY", secrets.token_urlsafe(32))
     values["NEXT_TELEMETRY_DISABLED"] = "1"
     return values
 
@@ -76,7 +76,7 @@ def executable(name: str) -> str:
 
 def setup() -> None:
     if sys.version_info < (3, 11):
-        raise ValueError("Python 3.11 or newer is required. Set SPARK_PYTHON to the executable path.")
+        raise ValueError("Python 3.11 or newer is required. Set ITOR_PYTHON to the executable path.")
     node, npm = executable("node"), executable("npm")
     version = subprocess.check_output([node, "--version"], text=True).strip()
     if tuple(map(int, version.removeprefix("v").split(".")[:2])) < (22, 12):
@@ -112,19 +112,19 @@ def launch(production: bool) -> int:
     if production and not (WEB / ".next" / "BUILD_ID").is_file():
         raise ValueError("Run make build (or npm --prefix apps/web run build) first.")
     values = environment()
-    web_host, web_port, web_url = origin(values["SPARK_WEB_ORIGIN"])
-    agent_host, agent_port, agent_url = origin(values["SPARK_AGENT_URL"])
-    values.update(SPARK_WEB_ORIGIN=web_url, SPARK_AGENT_URL=agent_url)
+    web_host, web_port, web_url = origin(values["ITOR_WEB_ORIGIN"])
+    agent_host, agent_port, agent_url = origin(values["ITOR_AGENT_URL"])
+    values.update(ITOR_WEB_ORIGIN=web_url, ITOR_AGENT_URL=agent_url)
     if web_port == agent_port:
         raise ValueError("Use different ports for the web app and the device agent.")
-    if not values["SPARK_AGENT_KEY"].strip():
-        raise ValueError("Remove the empty SPARK_AGENT_KEY to let the launcher generate a key.")
+    if not values["ITOR_AGENT_KEY"].strip():
+        raise ValueError("Remove the empty ITOR_AGENT_KEY to let the launcher generate a key.")
     node = executable("node")
     # Prefer a concrete IPv4 binding for the default localhost aliases.
     web_bind = "127.0.0.1" if web_host == "localhost" else web_host
     agent_bind = "127.0.0.1" if agent_host == "localhost" else agent_host
     if agent_host == "localhost":
-        values["SPARK_AGENT_URL"] = f"http://127.0.0.1:{agent_port}"
+        values["ITOR_AGENT_URL"] = f"http://127.0.0.1:{agent_port}"
     children: list[subprocess.Popen] = []
 
     def stop(signum: int, _frame: object) -> None:
@@ -140,7 +140,7 @@ def launch(production: bool) -> int:
             node, str(NEXT), "start" if production else "dev",
             "--hostname", web_bind, "--port", str(web_port),
         ], cwd=WEB, env=values))
-        print(f"Spark Ready  {web_url}", flush=True)
+        print(f"itor  {web_url}", flush=True)
         while all(process.poll() is None for process in children):
             time.sleep(0.25)
         return next((code for process in children if (code := process.poll()) is not None), 1)
@@ -160,7 +160,7 @@ def main() -> int:
             return 0
         return launch(production=selected == "start")
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
-        print(f"Spark Ready could not start or finish setup. {error}", file=sys.stderr)
+        print(f"itor could not start or finish setup. {error}", file=sys.stderr)
         return 1
 
 

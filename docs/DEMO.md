@@ -15,8 +15,8 @@
 | 2:00–2:40 | Read the diagnosis and point to its provider label and measured evidence. | Qwen can explain the issue on this laptop. When the model is unavailable, the app gives a deterministic local explanation. |
 | 2:40–3:30 | Click **Fix this for me**, read the scope, then click **Approve and stop workload**. Wait for the verification panel. | The employee approves just this workload. We recheck process exit and show the actual CPU samples. |
 | 3:30–4:15 | Return to the meeting. Show the checklist and **Join meeting** if a configured link is available. | The employee can go back to their original goal. Audio and camera can be checked in the meeting app. |
-| 4:15–4:40 | Open **Settings** to show providers, then **Demo controls** → **Simulate cloud unavailability**. Close the dialog to show the banner, then reopen controls and click **Restore cloud adapter**. | Spark Ready can keep preparing meetings and checking the device during cloud loss. The simulated outage changes only the demo adapter. |
-| 4:40–5:00 | Return to **Today**. | With tenant access, NQL and governed Remote Actions can sit behind the same provider boundaries. Spark Ready gives employees a daily reason to benefit from proactive IT. |
+| 4:15–4:40 | Open **Settings** to show providers, then **Demo controls** → **Simulate cloud unavailability**. Close the dialog to show the banner, then reopen controls and click **Restore cloud adapter**. | itor can keep preparing meetings and checking the device during cloud loss. The simulated outage changes only the demo adapter. |
+| 4:40–5:00 | Return to **Today**. | With tenant access, NQL and governed Remote Actions can sit behind the same provider boundaries. itor gives employees a daily reason to benefit from proactive IT. |
 
 ## If the demonstration goes off-script
 

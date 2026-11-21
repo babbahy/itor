@@ -147,7 +147,7 @@ class LocalSafeRemediationProvider:
         if session is None:
             raise ActionError("The originating preflight is unavailable.", 410)
         action = self.save(plan, "approved")
-        self.store.event("action_approved", "Demo action approved", "The employee approved stopping the Spark Ready workload.")
+        self.store.event("action_approved", "Demo action approved", "The employee approved stopping the itor workload.")
         self.job = asyncio.create_task(self.execute(plan, session))
         return action
 
@@ -187,7 +187,7 @@ class LocalSafeRemediationProvider:
                 **session.model_dump(), **result.model_dump(), "completed_at": utc_now(),
             }))
             self.save(plan, "succeeded", after=after, verification=verification,
-                      message="The original Spark Ready workload exited and device checks were rerun.")
+                      message="The original itor workload exited and device checks were rerun.")
         except WorkloadError as error:
             self.save(plan, "failed", message=str(error))
             self.store.event("action_failed", "Demo remediation could not be verified", str(error))

@@ -1,6 +1,6 @@
 # Architecture
 
-Spark Ready runs as two loopback services on the employee’s machine. Next.js serves the UI and bundled assets and passes approved API routes to FastAPI. FastAPI samples the host through psutil, owns the bounded child workload, and stores meetings and compact events in SQLite. Ollama runs separately on loopback and receives a limited diagnosis payload.
+itor runs as two loopback services on the employee’s machine. Next.js serves the UI and bundled assets and passes approved API routes to FastAPI. FastAPI samples the host through psutil, owns the bounded child workload, and stores meetings and compact events in SQLite. Ollama runs separately on loopback and receives a limited diagnosis payload.
 
 ```mermaid
 flowchart LR
@@ -13,7 +13,7 @@ flowchart LR
     Diagnose --> Ollama["Local Ollama"]
     Diagnose --> Rules["Rules-based explanation"]
     Agent --> Actions["Approved action and verification"]
-    Actions --> Child["Spark Ready child workload"]
+    Actions --> Child["itor child workload"]
     Agent --> Connectivity["Connectivity manager"]
     Connectivity -. "Optional approved HTTPS probe" .-> Endpoint["Configured endpoint"]
 ```
@@ -44,4 +44,4 @@ Nexthink remains unconfigured in the prototype. The optional synchronization bou
 
 The local meeting illustration is [hero-art.webp](../apps/web/public/hero-art.webp). It was created with the built-in image generation tool and compressed to WebP for offline delivery. The tool received this generation prompt.
 
-> Create a wide landscape 3D decorative hero art background for the right half of the Spark Ready meeting dashboard. In a near-black ink navy studio, a single large angled continuous orbital ring made of smoked dark violet glass and brushed chrome, with a fine electric-lavender edge reflection and two subtly luminous pinpoints on the orbit. Premium restrained industrial design render, sculptural and believable materials, crisp rim, subtle depth. Concentrate the object and all bright details in the rightmost two-thirds, letting the left third and exterior edges fade smoothly into uniform near-black navy, so a meeting title on the left stays readable. Wide crop with generous breathing space. No letters, text, logo, interface, instrument overlay, extra props or people.
+> Create a wide landscape 3D decorative hero art background for the right half of the itor meeting dashboard. In a near-black ink navy studio, a single large angled continuous orbital ring made of smoked dark violet glass and brushed chrome, with a fine electric-lavender edge reflection and two subtly luminous pinpoints on the orbit. Premium restrained industrial design render, sculptural and believable materials, crisp rim, subtle depth. Concentrate the object and all bright details in the rightmost two-thirds, letting the left third and exterior edges fade smoothly into uniform near-black navy, so a meeting title on the left stays readable. Wide crop with generous breathing space. No letters, text, logo, interface, instrument overlay, extra props or people.

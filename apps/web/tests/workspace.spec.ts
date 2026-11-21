@@ -182,7 +182,7 @@ test('requires approval and displays verified before and after measurements', as
   await page.getByRole('button', { name: 'Fix this for me' }).click();
   const dialog = page.getByRole('dialog', { name: 'Approve local action' });
   await expect(
-    dialog.getByText('Stop the temporary workload created by Spark Ready.'),
+    dialog.getByText('Stop the temporary workload created by itor.'),
   ).toBeVisible();
   expect(isApproved()).toBe(false);
   await dialog.getByRole('button', { name: 'Cancel' }).click();

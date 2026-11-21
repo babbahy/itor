@@ -279,7 +279,7 @@ export function Workload({
         <p>
           {workload.active
             ? `${reading(workload.cpu_percent)} of one CPU core · Demo workload`
-            : 'No Spark Ready workload is running.'}
+            : 'No itor workload is running.'}
         </p>
       </div>
       {workload.active && (

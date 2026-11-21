@@ -1,63 +1,57 @@
-# Ready Check: Nexthink DEX hackathon (Kotlin desktop app)
+# itor: Nexthink DEX hackathon plan
 
-## Context
-Nexthink challenge: build an AI that removes real work-tech pain **and** that employees open every day even when nothing is broken. Team chose **Ready Check**: a desktop app that, before your next meeting, runs a 10-second device check-up (network, audio, disk, CPU/RAM, battery, pending restart). It shows a brief with a **"Fix now?"** button. A Claude agent explains each issue and runs a fix from a fixed safe list, but **only after the user clicks Approve**. A "time won back" tally makes the daily value visible.
-- Daily hook = the next meeting ("your 9:30 call is ready"), not notifications.
-- Team: 2 people. Dev on Linux and Windows; **the final demo runs on Windows**.
-- **User wants to code in Kotlin.** Decision: the **whole app is Kotlin**, using Compose Multiplatform Desktop instead of Electron. That's the simplest option and uses the fewest tokens: one language, one process, no main/preload/renderer split, no IPC layer.
-- Claude: user's own Anthropic API key, `claude-opus-5-5`.
-- Repo: GitHub `babbahy/itor`. It will be set up **on the Windows machine** (the user is switching to it before starting).
+## The idea
+Nexthink challenge: build an AI that removes real work-tech pain **and** that employees open every day even when nothing is broken.
 
-## Stack
-- Kotlin + **Compose Multiplatform Desktop** (Gradle, JetBrains template). Runs on Windows and Linux; `packageMsi` builds the Windows installer.
-- **OSHI** (`com.github.oshi:oshi-core`) for cross-platform telemetry: CPU, RAM, disk, battery, network, processes. `ProcessBuilder` for ping and OS commands.
-- **Anthropic Java SDK** `com.anthropic:anthropic-java:3.3.0` (works from Kotlin). The key is read from the `ANTHROPIC_API_KEY` environment variable.
-- Agent loop: SDK **`BetaToolRunner`** (`client.beta().messages().toolRunner(...)`) with annotated tool classes. The approval gate lives inside each tool's execution: it suspends on a `CompletableDeferred` that the UI's Approve/Decline button completes, and returns "user declined" if the user says no.
-- Model `claude-opus-5-5`, adaptive thinking, effort `low` (chat-like, fast), server-side `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`). Handle `stop_reason == refusal`.
-- Storage: a JSON file in the user's home app folder (kotlinx.serialization) for check history and the tally.
-- Coroutines: checks and the agent run on `Dispatchers.IO`; UI state lives in `StateFlow`s.
+**itor** gets your laptop ready before your next meeting. It runs a quick check-up (internet, CPU, memory, disk, battery, sound, pending restart) and shows a short brief: "Your 9:30 call is ready" or "2 things need attention". For each problem, the AI explains it in plain words and proposes a fix from a fixed safe list. **Nothing runs until the user clicks Approve.** After the fix, itor measures again to show it worked. A "time won back" counter shows the daily value.
 
-## Structure (`composeApp/src/jvmMain/kotlin/readycheck/`)
-```
-Main.kt              window + tray icon, app state
-checks/Checks.kt     one fun per check → CheckResult(id, status: OK|WARN|FAIL, detail, metric)
-fixes/
-  Registry.kt        allow-list: Fix(id, title, description, commandPreview, linux(), windows())
-  WindowsFixes.kt    PowerShell: ipconfig /flushdns, netsh reset, clear %TEMP%, Stop-Process, restart audio service
-  LinuxFixes.kt      nmcli, pactl, clear ~/.cache tmp, kill
-agent/
-  Agent.kt           BetaToolRunner loop, system prompt, streams text to UI state
-  Tools.kt           RunCheckup, ListTopProcesses, ProposeFix(fixId, reason) → awaits approval
-Store.kt             history + time-won-back tally
-Calendar.kt          next meeting: ICS file import, or a demo fixture
-ui/
-  BriefScreen.kt     "Ready for 9:30 Teams call": check rows ✅/⚠️, a Fix now? button each
-  AgentPanel.kt      chat + approval card (exact command, Approve / Decline)
-  TallyCard.kt       "This week: 3 bad meeting starts avoided ≈ 25 min won back"
-```
+- Daily hook = the next meeting, not notifications.
+- Team: 2 people, 48 hours. **The final demo runs on Windows, on our own laptop.**
+- Name: **itor** everywhere (not "Spark Ready"). See [AGENTS.md](AGENTS.md).
 
-## Key design rules
-- **The agent can only call fixes in `Registry.kt`.** It never runs arbitrary shell commands. The approval card shows the real command.
-- Each check/fix has a Windows and a Linux implementation; one `os.name` switch picks between them.
-- **Demo mode** (`DEMO=1`) injects scripted faults (CPU-hog process, low disk, pending restart, bad Wi-Fi), so the Windows demo is reliable. Safe fixes still really run (killing the dummy process, clearing temp).
-- Tally: each resolved warning adds a fixed estimate (for example "a meeting audio failure ≈ 8 min"), defined in one constants file.
+## What we merged
+We had two versions: a Kotlin desktop plan, and a working web app built by a teammate. **We keep the web app** (it already works and has tests) and add the best ideas from the Kotlin plan. The Kotlin app is dropped.
 
-## 48h split
-- **Person A:** Compose UI (Brief, AgentPanel, Tally), tray icon + "open before meeting" trigger, agent + tools.
-- **Person B (Windows):** OSHI checks, Windows fixes, demo-mode fault injection.
-- Timeline: h0–8 scaffold + checks render; h8–20 agent + approval flow; h20–32 fixes + tally; h32–40 calendar + polish; h40–48 demo script, `packageMsi`, rehearsal on Windows, README/pitch.
+**Already built (web app):**
+- A web page (Next.js) that talks to a small Python helper running on the laptop (FastAPI).
+- Meeting list with a demo schedule.
+- Checks: CPU, memory, disk, network, plus a demo "CPU hog" workload.
+- AI explanation: simple built-in rules, or a local AI model (Qwen through Ollama) that works offline.
+- One fix: stop the demo CPU hog, only after Approve, then measure again to prove it worked.
+- Works offline, keeps history on the laptop, has tests and a demo script ([docs/DEMO.md](docs/DEMO.md)).
 
-## Steps
-1. On Windows: install JDK 17+ and IntelliJ IDEA (Kotlin Multiplatform plugin). Generate a Compose Desktop project into the repo folder, add README (`# itor`) and `.gitignore` (`.gradle`, `build`, `.idea`, `.env`). Then `git init`, `main` branch, remote `origin` → `https://github.com/babbahy/itor.git`, first commit (pushing is the user's call).
-2. Add OSHI, anthropic-java, kotlinx-serialization, kotlinx-coroutines-swing to `build.gradle.kts`.
-3. Checks + Brief UI with no AI first (it works offline).
-4. Agent + approval flow.
-5. Fix registry: Windows first (demo OS), then Linux.
-6. Tally + store, then calendar/next meeting, then demo mode.
+**Added from the Kotlin plan (to do):**
+1. **Claude as the AI** when an API key is set (`claude-opus-5-5`, effort `low`). If there is no key or no internet, itor falls back to the local model, then to the built-in rules. So the demo never breaks.
+2. **More quick fixes (Windows first)**, each one shown with its exact command and needing Approve:
+   - flush DNS (fixes "website won't load" after a network change)
+   - turn Wi-Fi off and on
+   - clear temporary files
+   - restart the Windows sound service
+   - stop a heavy app the user picked from the "top apps" list (never a system app)
+   Only fixes that work right away. No fix that needs a restart.
+3. **More checks:** battery level, pending Windows restart, Wi-Fi signal strength, speaker and microphone present.
+4. **"Time won back" counter:** each problem fixed before a meeting adds a fixed estimate (for example "sound problem ≈ 8 min"). Shown as "This week: 3 bad meeting starts avoided ≈ 25 min won back".
 
-## Verification
-- `./gradlew run` on Windows: the brief shows real metrics. Start a CPU-hog process → a warning appears → the agent proposes killing it → Approve → the process is gone and the tally increases.
-- Decline path: the agent reports the issue as unresolved and runs nothing.
-- Same flow on Linux (`./gradlew run`, using `yes > /dev/null` as the CPU hog).
-- `./gradlew packageMsi` produces an installer that runs on a clean Windows user account.
-- With `ANTHROPIC_API_KEY` unset, the check-up still works and the agent panel shows "add API key".
+## Simple rules
+- **The AI can only pick fixes from the safe list.** It never runs its own commands.
+- **Approve before anything runs**, and the card shows the real command.
+- **The Python helper runs as admin** on the demo laptop (open PowerShell as administrator, then start itor). Some fixes need it.
+- **Stopping an app is limited:** only apps from the "top apps" list, owned by the user, never system apps.
+- **No installer.** We run itor with the start script. Keep everything as simple as possible.
+- **Demo mode** keeps the demo reliable: it creates fake problems (CPU hog, low disk, pending restart, weak Wi-Fi). Real fixes still run where possible; fake problems are marked fixed after Approve.
+
+## Who does what
+- **Person A:** Claude in the AI step (with fallback), "time won back" counter, UI for the new fixes and checks.
+- **Person B (Windows):** new Windows checks and fixes in the Python helper, demo mode for the new fake problems.
+- Timeline: h0–12 Claude + counter + first new fix; h12–28 the other fixes and checks; h28–40 polish and demo mode; h40–48 demo rehearsal on Windows, README, pitch.
+
+## How to run
+See [README.md](README.md). On Windows: `./scripts/setup.ps1` once, then `./scripts/dev.ps1`, then open the address it prints.
+
+## How we check it works
+- `make test` passes.
+- On Windows: start the demo CPU hog → a warning appears → the AI explains it → Approve → the hog stops, itor shows before/after CPU, the counter goes up.
+- Decline: nothing runs, the problem stays marked as not fixed.
+- Each new Windows fix runs once and works without a restart.
+- With no Claude key, or with the internet off, the check-up and the explanation still work (local model or rules).
+- Demo mode: every fake problem shows up and can be fixed during the rehearsal.

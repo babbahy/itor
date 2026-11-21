@@ -1,6 +1,6 @@
 .env
 .venv/
-.spark-ready/
+.itor/
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal

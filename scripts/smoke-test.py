@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Spark Ready through the local web server and its authenticated agent proxy."""
+"""Verify itor through the local web server and its authenticated agent proxy."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def eventually(get: Callable, ready: Callable, detail: str, timeout: float = 15)
 
 def check(base: str) -> dict:
     page = request(base, "/", timeout=30)
-    require("Spark Ready" in page, "The local Next.js page did not include Spark Ready.")
+    require("itor" in page, "The local Next.js page did not include itor.")
     health = request(base, "/api/health")
     status = request(base, "/api/status")
     snapshot = request(base, "/api/device/snapshot")
@@ -153,7 +153,7 @@ def main() -> int:
     diagnosis.add_argument("--skip-diagnosis", action="store_true", help="Skip inference when only testing approval and verification.")
     args = parser.parse_args()
     try:
-        _, _, base = origin(environment()["SPARK_WEB_ORIGIN"])
+        _, _, base = origin(environment()["ITOR_WEB_ORIGIN"])
         if args.command == "check":
             check(base)
         elif args.command == "reset":

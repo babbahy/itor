@@ -62,7 +62,7 @@ class ReadinessEngine:
 
         work = snapshot.workload
         if work.active and work.cpu_percent is not None and work.cpu_percent >= 20:
-            evidence = f"Spark Ready's temporary workload is using {work.cpu_percent:.1f}% of one CPU core."
+            evidence = f"itor's temporary workload is using {work.cpu_percent:.1f}% of one CPU core."
             record("workload", "Background workload", "warning", evidence)
             finding("workload", "warning", "Background workload using CPU", evidence,
                     "The workload may leave less processor time for your meeting app.",
@@ -71,7 +71,7 @@ class ReadinessEngine:
         elif work.active:
             record("workload", "Background workload", "unknown", "Waiting for a current workload CPU sample.")
         else:
-            record("workload", "Background workload", "passed", "The Spark Ready demonstration workload is idle.")
+            record("workload", "Background workload", "passed", "The itor demonstration workload is idle.")
 
         if snapshot.network_up is False or internet_unavailable:
             evidence = ("The approved internet check did not reach its configured endpoint." if internet_unavailable

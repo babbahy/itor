@@ -405,7 +405,7 @@ function Dashboard({ children }: { children: ReactNode }) {
     '/activity': 'Preflights, findings, and approved actions on this device.',
     '/insights':
       'A clear view of meeting preparation and fixes on this device.',
-    '/privacy': 'See what Spark Ready processes and stores on your device.',
+    '/privacy': 'See what itor processes and stores on your device.',
     '/settings': 'Local services, connection diagnostics, and demo controls.',
   };
   const diagnostic = (
@@ -428,7 +428,7 @@ function Dashboard({ children }: { children: ReactNode }) {
       <ActionOutcome action={currentAction} />
       {liveAction.isError && isFixing && (
         <Notice kind="error">
-          The action result is unavailable. Spark Ready will check again when
+          The action result is unavailable. itor will check again when
           the agent reconnects.
         </Notice>
       )}
@@ -457,7 +457,7 @@ function Dashboard({ children }: { children: ReactNode }) {
             <Sparkles size={23} fill="currentColor" strokeWidth={1.5} />
           </span>
           <span>
-            Spark<span className="brand-accent">Ready</span>
+            it<span className="brand-accent">or</span>
             <small>LOCAL WORKSPACE</small>
           </span>
         </Link>
@@ -928,7 +928,7 @@ function Dashboard({ children }: { children: ReactNode }) {
               </div>
               <div>
                 <h3>{action.title}</h3>
-                <p>{dialogFinding?.title ?? 'Spark Ready safe action'}</p>
+                <p>{dialogFinding?.title ?? 'itor safe action'}</p>
               </div>
             </div>
             <dl className="approval-details">
@@ -1068,7 +1068,7 @@ function Dashboard({ children }: { children: ReactNode }) {
               <Notice>
                 <p>
                   {demoConfirm === 'stop'
-                    ? 'Stop the Spark Ready demonstration workload?'
+                    ? 'Stop the itor demonstration workload?'
                     : 'Reset the demo schedule and stop any running demonstration workload?'}
                 </p>
                 <div className="button-row">

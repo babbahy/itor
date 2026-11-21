@@ -1,6 +1,6 @@
 # Nexthink integration
 
-Spark Ready owns the next-meeting workflow, readiness presentation and approval interaction. The current prototype implements telemetry, diagnosis and remediation locally. Nexthink status is **Not configured** outside the clearly labeled demo outage.
+itor owns the next-meeting workflow, readiness presentation and approval interaction. The current prototype implements telemetry, diagnosis and remediation locally. Nexthink status is **Not configured** outside the clearly labeled demo outage.
 
 ## What tenant access would enable
 

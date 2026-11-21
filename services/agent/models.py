@@ -179,7 +179,7 @@ class Verification(BaseModel):
 class AvailableAction(BaseModel):
     action_id: Literal["stop_demo_workload"] = "stop_demo_workload"
     title: str = "Stop demo workload"
-    scope: str = "Stop the temporary background workload started by Spark Ready."
+    scope: str = "Stop the temporary background workload started by itor."
     expected_result: str = "Release the CPU time used by this workload and recheck device readiness."
     side_effects: str = "Ends the current demo run. Other applications and network settings are unaffected."
 

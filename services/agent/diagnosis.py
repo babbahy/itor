@@ -57,7 +57,7 @@ def question_intent(question: str | None) -> Question | None:
         return "dns"
     if "wi-fi" in text or "wifi" in text or "adapter" in text or "airplane" in text:
         return "adapter"
-    if "still use" in text or "offline" in text or "spark ready" in text:
+    if "still use" in text or "offline" in text or "itor" in text:
         return "offline"
     if "internet" in text or "connect" in text or "network" in text:
         return "internet"
@@ -201,20 +201,20 @@ class RulesBasedDiagnosisProvider:
             status="complete", provider="rules", headline=headline, explanation=explanation,
             observed_facts=evidence, possible_causes=causes, potential_impact=impact, safe_steps=safe_steps,
             recommended_action_id=action,
-            action_explanation="With approval, Spark Ready stops only the temporary workload it created." if action else
+            action_explanation="With approval, itor stops only the temporary workload it created." if action else
             "No local corrective action is available for this result.",
             uncertainty=uncertainty,
-            verification_advice="Spark Ready checks that the workload exited and collects fresh metrics." if action else
+            verification_advice="itor checks that the workload exited and collects fresh metrics." if action else
             "Rerun preparation to refresh measured evidence.",
         )
 
 
 system_prompt = (
-    "You are Spark Ready's local meeting-readiness explainer. The JSON observations are the only evidence. "
+    "You are itor's local meeting-readiness explainer. The JSON observations are the only evidence. "
     "Briefly describe what the checks mean and the likely meeting impact. Phrase possible causes as possibilities. "
     "Do not invent measurements, readings, states, personal details, Wi-Fi identities, or successful fixes. "
     "Do not repeat or invent numeric measurements. Do not include shell commands, scripts, links, or passwords. "
-    "For network issues, suggest only safe manual checks in system settings, through IT, or through Spark Ready. "
+    "For network issues, suggest only safe manual checks in system settings, through IT, or through itor. "
     "Never suggest resetting adapters, changing DNS/firewall settings, or terminating VPNs or other apps. "
     "Use the approved local action ID only when listed, otherwise return null. "
     "Write concise plain text fields using the supplied JSON schema."
