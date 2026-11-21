@@ -54,8 +54,11 @@ export function DayCard({
   onBlocked: (blocked: boolean) => void;
 }) {
   const state = stateCopy[day?.state ?? 'unknown'];
-  const causes = Object.entries(day?.lost_by_cause ?? {}).sort((a, b) => b[1] - a[1]);
-  const frozen = Object.entries(day?.frozen_apps ?? {});
+  // Hide causes under 30 s: they would show as "0 min".
+  const causes = Object.entries(day?.lost_by_cause ?? {})
+    .filter(([, seconds]) => seconds >= 30)
+    .sort((a, b) => b[1] - a[1]);
+  const frozen = Object.entries(day?.frozen_apps ?? {}).filter(([, seconds]) => seconds >= 30);
   return (
     <article className="card detail-card day-card">
       <div className="section-heading">
