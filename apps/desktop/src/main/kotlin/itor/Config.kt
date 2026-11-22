@@ -16,14 +16,14 @@ data class Config(
 )
 
 object Paths {
-    private fun dir(env: String, fallback: String): File =
-        File(System.getenv(env) ?: (System.getProperty("user.home") + fallback), "itor").apply { mkdirs() }
+    private fun dir(env: String, fallback: String, name: String): File =
+        File(System.getenv(env) ?: (System.getProperty("user.home") + fallback), name).apply { mkdirs() }
 
     /** Roaming settings. */
-    val config: File get() = File(dir("APPDATA", "\\AppData\\Roaming"), "config.json")
+    val config: File get() = File(dir("APPDATA", "\\AppData\\Roaming", "itor"), "config.json")
 
-    /** Local data: database, logs, lock. */
-    val data: File get() = dir("LOCALAPPDATA", "\\AppData\\Local")
+    /** Local data: database, logs, lock. Kept out of %LOCALAPPDATA%\itor, where the app is installed. */
+    val data: File get() = dir("LOCALAPPDATA", "\\AppData\\Local", "itor-data")
 }
 
 object ConfigStore {

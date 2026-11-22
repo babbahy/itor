@@ -9,7 +9,25 @@ itor is a hackathon prototype with two parts:
 
 See [PLAN.md](PLAN.md) for the plan and status, and [docs/PRIVACY.md](docs/PRIVACY.md) for what is measured.
 
-## Run locally
+## Employee app (Windows installer)
+
+Employees use **itor for Windows** (`apps/desktop`, Kotlin + Compose). It is a normal app with a tray icon that starts with Windows and needs no admin rights. It starts its own helper (`itor-helper.exe`, the Python code in `services/agent` packed with PyInstaller).
+
+Build the installer (needs JDK 17 and the `.venv` from `./scripts/setup.ps1`):
+
+```powershell
+./scripts/build-desktop.ps1
+```
+
+Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.0.msi`.
+
+**Deploy (IT):** install the MSI per user (`msiexec /i itor-1.0.0.msi /qn`), plus, for the offline AI, Ollama and the model (`winget install Ollama.Ollama`, then `ollama pull qwen3.5:4b`). Without Ollama, itor uses simple rules. Each employee can set a name and a Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, settings in `%APPDATA%\itor\config.json`.
+
+**Develop:** `cd apps/desktop; ./gradlew run` (add `-Pdemo` for the demo menu). In development the app runs the helper from `.venv`.
+
+The web app below is now the **manager / IT console** (Team ranking, tickets).
+
+## Run locally (web console)
 
 Use **Node.js 22.12+**, **npm**, and **Python 3.11+**. Installation downloads the project dependencies. The web app, agent, SQLite database, and bundled assets work on loopback once installed. Ollama is optional.
 

@@ -25,6 +25,9 @@ Nexthink challenge: build an AI that removes real work-tech pain **and** that em
 - Web pages: **My day** (time, "I'm blocked", "What your manager sees", offline help), **My PC**, **Log**, **Team** (ranking), Privacy, Settings. First-launch notice.
 - Python tests: 55 pass. Web type-check and lint pass.
 
+- **Employee app for Windows** (`apps/desktop`, Kotlin Compose): Home (status, Fix my problem, Ask IT), My day, Settings, tray, starts with Windows. MSI installer (`scripts/build-desktop.ps1`), per-user, no admin. Monochrome design rules in AGENTS.md.
+- Helper packed as `itor-helper.exe`. The Wi-Fi fix asks Windows for admin itself, so itor never runs as admin.
+
 **To do**
 - Update Node.js to 22.12+ on the demo PC, then run the web app and `make test` (web tests need Node 22).
 - Install Ollama + `qwen3.5:4b` on the demo PC.

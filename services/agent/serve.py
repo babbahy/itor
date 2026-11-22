@@ -22,8 +22,8 @@ def main(argv: list[str]) -> None:
         burn(int(argv[2]))
         return
     if sys.stdout is None or sys.stderr is None:
-        # Packed without a console window: write logs to %LOCALAPPDATA%\itor\helper.log instead.
-        folder = os.path.join(os.getenv("LOCALAPPDATA") or os.path.expanduser("~"), "itor")
+        # Packed without a console window: write logs to %LOCALAPPDATA%\itor-data\helper.log instead.
+        folder = os.path.join(os.getenv("LOCALAPPDATA") or os.path.expanduser("~"), "itor-data")
         os.makedirs(folder, exist_ok=True)
         log = open(os.path.join(folder, "helper.log"), "a", encoding="utf-8", buffering=1)
         sys.stdout = sys.stdout or log
