@@ -10,6 +10,9 @@ from ipaddress import ip_address
 from pathlib import Path
 import re
 import socket
+import sys
+import threading
+import subprocess
 from time import monotonic
 from typing import Protocol
 from urllib.parse import urlsplit
@@ -124,15 +127,64 @@ def normalize_probe_url(url: str) -> str:
     return url
 
 
+# Virtual adapters (VirtualBox, VMware, Hyper-V, WSL, VPN taps...) stay "up" when Wi-Fi is off,
+# so they must not count as being connected.
+VIRTUAL_WORDS = ("virtualbox", "vmware", "vethernet", "hyper-v", "wsl", "loopback", "pseudo", "tap-", "tunnel",
+                 "bluetooth", "docker", "npcap", "zerotier", "tailscale")
+_physical_cache: tuple[float, set[str] | None] = (0.0, None)
+_physical_refreshing = threading.Lock()
+
+
+def _refresh_physical() -> None:
+    global _physical_cache
+    try:
+        done = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             "Get-NetAdapter -Physical | ForEach-Object { $_.Name }"],
+            capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        names = {line.strip() for line in done.stdout.splitlines() if line.strip()} if done.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        names = None
+    _physical_cache = (monotonic(), names if names is not None else _physical_cache[1])
+    _physical_refreshing.release()
+
+
+def physical_adapters() -> set[str] | None:
+    """Names of physical network adapters on Windows. None when not known yet (or not Windows).
+
+    Never blocks: the list (from PowerShell, ~1 s) is refreshed in the background every 60 s.
+    """
+    if sys.platform != "win32":
+        return None
+    checked, names = _physical_cache
+    if (names is None or monotonic() - checked >= 60) and _physical_refreshing.acquire(blocking=False):
+        threading.Thread(target=_refresh_physical, daemon=True).start()
+    return names
+
+
+def counts_as_network(name: str, address: str, physical: set[str] | None) -> bool:
+    """A real connection: a physical (or not obviously virtual) adapter with a routable address."""
+    lowered = name.lower()
+    if physical is not None and name not in physical:
+        return False
+    if any(word in lowered for word in VIRTUAL_WORDS):
+        return False
+    ip = ip_address(address.split("%")[0])
+    # 169.254.x.x / fe80:: are self-assigned when there is no network: not connected.
+    return not (ip.is_loopback or ip.is_unspecified or ip.is_link_local)
+
+
 def check_interface() -> Observation:
     try:
         addresses = psutil.net_if_addrs()
         stats = psutil.net_if_stats()
+        physical = physical_adapters()
         connected = any(
-            stats.get(name) and stats[name].isup and not name.lower().startswith("loopback")
+            stats.get(name) and stats[name].isup
             and address.family in (socket.AF_INET, socket.AF_INET6)
-            and not ip_address(address.address.split("%")[0]).is_loopback
-            and not ip_address(address.address.split("%")[0]).is_unspecified
+            and counts_as_network(name, address.address, physical)
             for name, entries in addresses.items()
             for address in entries
         )

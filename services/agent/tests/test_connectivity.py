@@ -236,3 +236,14 @@ def test_cloud_simulation_preserves_previous_provider_and_labels_stale_data():
 def test_inference_destination_must_be_loopback(base_url):
     with pytest.raises(ValueError, match="loopback"):
         ConnectivityManager(ollama_base_url=base_url)
+
+
+def test_virtual_and_self_assigned_adapters_do_not_count_as_connected():
+    from services.agent.connectivity import counts_as_network
+    physical = {"Wi-Fi 2", "Ethernet"}
+    assert counts_as_network("Wi-Fi 2", "10.101.0.63", physical)
+    assert not counts_as_network("Ethernet 2", "192.168.56.1", physical)       # VirtualBox host-only
+    assert not counts_as_network("Ethernet", "169.254.25.169", physical)       # no DHCP: self-assigned
+    assert not counts_as_network("Wi-Fi 2", "fe80::a947:e492:c2e1:aee3", physical)
+    assert not counts_as_network("vEthernet (WSL)", "172.20.0.1", None)        # unknown list: name rule
+    assert counts_as_network("eth0", "192.168.1.20", None)

@@ -41,6 +41,11 @@ class Helper(private val config: Config) {
         env["ITOR_AGENT_KEY"] = key
         env["ITOR_AGENT_PORT"] = port.toString()
         env["ITOR_DB_PATH"] = File(Paths.data, "itor.sqlite3").absolutePath
+        // Real internet test so a Wi-Fi cut is seen even when a virtual adapter stays up.
+        // An empty request to Google's connectivity page (the one Android/Chrome use); no data is sent.
+        env.putIfAbsent("ITOR_INTERNET_PROBE_URL", "https://www.gstatic.com/generate_204")
+        env.putIfAbsent("ITOR_INTERNET_EXPECTED_STATUS", "204")
+        env.putIfAbsent("ITOR_CONNECTIVITY_INTERVAL_SECONDS", "10")
         if (config.employeeName.isNotBlank()) env["ITOR_EMPLOYEE_NAME"] = config.employeeName.trim()
         if (config.geminiKey.isNotBlank()) env["GEMINI_API_KEY"] = config.geminiKey.trim()
         // No company server configured: this PC plays the company server (demo).
