@@ -154,6 +154,7 @@ fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Un
     var url by remember { mutableStateOf(config.companyUrl) }
     var key by remember { mutableStateOf(config.companyKey) }
     var autostart by remember { mutableStateOf(config.autostart) }
+    var showTeam by remember { mutableStateOf(config.showTeam) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Card {
             T("Settings", 15, FontWeight.SemiBold)
@@ -168,8 +169,12 @@ fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Un
                 Checkbox(autostart, { autostart = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
                 T("Start itor with Windows", 13)
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(showTeam, { showTeam = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
+                T("Show manager view (demo)", 13)
+            }
             Btn("Save and restart helper", {
-                onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart))
+                onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart, showTeam = showTeam))
             }, primary = true)
         }
         if (demo) Card {

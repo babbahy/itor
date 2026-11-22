@@ -42,7 +42,10 @@ data class Finding(val id: String, val title: String, val category: String = "",
 
 @Serializable data class Readiness(val readiness: String = "unknown", val findings: List<Finding> = emptyList())
 
-@Serializable data class Preflight(val id: String, val readiness: String, val findings: List<Finding> = emptyList())
+@Serializable data class Snapshot(val cpuPercent: Double? = null, val memoryPercent: Double? = null, val diskPercent: Double? = null)
+
+@Serializable
+data class Preflight(val id: String, val readiness: String, val findings: List<Finding> = emptyList(), val snapshot: Snapshot = Snapshot())
 
 @Serializable
 data class Diagnosis(
@@ -101,6 +104,36 @@ data class Action(
 @Serializable
 data class CompanyStatus(val configured: Boolean = false, val employee: String = "", val pending: Int = 0, val lastSentAt: String? = null)
 
+@Serializable
+data class TeamRow(
+    val rank: Int,
+    val employee: String,
+    val activeSeconds: Double = 0.0,
+    val lostSeconds: Double = 0.0,
+    val idleSeconds: Double = 0.0,
+    val paidSecondsTotal: Double = 0.0,
+    val activeShare: Double = 0.0,
+    val example: Boolean = false,
+)
+
+@Serializable
+data class TeamTicket(
+    val id: String,
+    val employee: String,
+    val message: String,
+    val createdAt: String,
+    val connection: List<String> = emptyList(),
+    val diagnosis: String? = null,
+)
+
+@Serializable
+data class Team(
+    val rows: List<TeamRow> = emptyList(),
+    val lostByCause: Map<String, Double> = emptyMap(),
+    val totalLostSeconds: Double = 0.0,
+    val tickets: List<TeamTicket> = emptyList(),
+)
+
 class ApiError(message: String) : Exception(message)
 
 /** Talks to the local helper on 127.0.0.1. */
@@ -156,6 +189,7 @@ class Api(private val baseUrl: String, private val key: String) {
     suspend fun worktime() = get("worktime/today", WorkDay.serializer())
     suspend fun company() = get("company/status", CompanyStatus.serializer())
     suspend fun fixes() = get("fixes", ListSerializer(Fix.serializer()))
+    suspend fun team() = get("company/team", Team.serializer())
 
     suspend fun preflight() = post("preflight", "{}", Preflight.serializer())
 

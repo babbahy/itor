@@ -15,10 +15,13 @@ data class HomeStatus(val tone: Tone, val title: String, val detail: String, val
 sealed interface FixState {
     data object Idle : FixState
     data object Describing : FixState
-    data object Checking : FixState
+    /** Live progress of the check, one line per real step. */
+    data class Checking(val steps: List<Step>, val startedAt: Long = System.currentTimeMillis()) : FixState
     data class Answer(val session: Preflight, val diagnosis: Diagnosis) : FixState
     data class Failed(val message: String) : FixState
 }
+
+data class Step(val label: String, val detail: String, val done: Boolean = false, val failed: Boolean = false)
 
 /** An approval waiting for the employee: a quick fix or stopping the demo workload. */
 sealed interface Approval {
@@ -26,7 +29,7 @@ sealed interface Approval {
     data class StopTask(val action: Action, val running: Boolean = false, val error: String? = null) : Approval
 }
 
-class Model(private val api: Api, private val scope: CoroutineScope) {
+class Model(private val api: Api, private val scope: CoroutineScope, private val hasGemini: Boolean = false) {
     val status = MutableStateFlow<Status?>(null)
     val readiness = MutableStateFlow<Readiness?>(null)
     val worktime = MutableStateFlow<WorkDay?>(null)
@@ -40,6 +43,7 @@ class Model(private val api: Api, private val scope: CoroutineScope) {
     val ticket = MutableStateFlow<Ticket?>(null)
     val ticketError = MutableStateFlow<String?>(null)
     val sendingTicket = MutableStateFlow(false)
+    val team = MutableStateFlow<Team?>(null)
 
     private val jobs = mutableListOf<Job>()
 
@@ -81,16 +85,49 @@ class Model(private val api: Api, private val scope: CoroutineScope) {
     fun describe() { fix.value = FixState.Describing; lastResult.value = null }
 
     fun check(question: String) {
-        fix.value = FixState.Checking
+        val steps = mutableListOf(Step("snapshot", "reading cpu, memory, disk"))
+        fun show() { fix.value = FixState.Checking(steps.toList(), (fix.value as? FixState.Checking)?.startedAt ?: System.currentTimeMillis()) }
+        fix.value = FixState.Checking(steps.toList())
         scope.launch {
-            fix.value = try {
+            try {
                 val session = api.preflight()
-                FixState.Answer(session, api.explain(session.id, question))
+                val s = session.snapshot
+                steps[0] = Step("snapshot", "cpu ${pct(s.cpuPercent)} · mem ${pct(s.memoryPercent)} · disk ${pct(s.diskPercent)}", done = true)
+                val net = (runCatching { api.status() }.getOrNull() ?: status.value)?.connectivity
+                val offline = net != null && (net.offlineRescue || net.simulatedCloudOutage ||
+                    net.internet.state in setOf("disconnected", "unreachable") || net.networkInterface.state == "disconnected")
+                steps += Step("network", networkLine(net, offline), done = true, failed = offline)
+                steps += Step("explain", if (hasGemini && !offline) "gemini · online" else "local-ai · ${status.value?.model ?: "qwen"}")
+                show()
+                val diagnosis = api.explain(session.id, question)
+                steps[2] = Step("explain", when (diagnosis.provider) {
+                    "gemini" -> "gemini · ${diagnosis.model ?: "online"}"
+                    "ollama" -> "local-ai · ${diagnosis.model ?: "qwen"}"
+                    else -> "simple rules (ai not available)"
+                }, done = true)
+                val count = fixes.value.count { it.supported } + if (diagnosis.recommendedActionId != null) 1 else 0
+                steps += Step("propose", "$count safe fix${if (count == 1) "" else "es"} · nothing runs without approval", done = true)
+                show()
+                delay(900) // let the last line land before the answer replaces the list
+                fix.value = FixState.Answer(session, diagnosis)
             } catch (error: Exception) {
-                FixState.Failed(error.message ?: "The check failed.")
+                fix.value = FixState.Failed(error.message ?: "The check failed.")
             }
         }
     }
+
+    private fun pct(value: Double?) = value?.let { "${Math.round(it)}%" } ?: "--"
+
+    private fun networkLine(net: Connectivity?, offline: Boolean): String = when {
+        net == null -> "unknown"
+        net.simulatedCloudOutage -> "cloud unreachable (demo) · adapter up"
+        net.networkInterface.state == "disconnected" -> "adapter down · offline"
+        offline -> "internet unreachable"
+        net.internet.state == "connected" -> "adapter up · internet ok"
+        else -> "adapter up · internet not tested"
+    }
+
+    fun loadTeam() = scope.launch { runCatching { team.value = api.team() } }
 
     fun closeFix() { fix.value = FixState.Idle; lastResult.value = null }
 

@@ -38,6 +38,7 @@ import itor.ui.ItorTheme
 import itor.ui.M
 import itor.ui.MyDay
 import itor.ui.Settings
+import itor.ui.Team
 import itor.ui.Spinner
 import itor.ui.T
 import itor.ui.colors
@@ -46,7 +47,7 @@ import java.io.RandomAccessFile
 import java.nio.channels.FileLock
 import kotlin.system.exitProcess
 
-enum class Screen { HOME, DAY, SETTINGS }
+enum class Screen { HOME, DAY, TEAM, SETTINGS }
 
 /** Tray icon: a plain dark square with an "i". No gradient. */
 object TrayIcon : Painter() {
@@ -69,8 +70,9 @@ private fun singleInstance(): Boolean {
 
 /** Start with Windows (installed app only): HKCU Run key, no admin needed. */
 private fun applyAutostart(enabled: Boolean) {
-    if (Helper.packedHelper() == null) return
+    // Only the installed app (itor.exe) registers itself, never a development run (java.exe).
     val exe = ProcessHandle.current().info().command().orElse(null) ?: return
+    if (!exe.endsWith("itor.exe", ignoreCase = true)) return
     val key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
     val command = if (enabled) listOf("reg", "add", key, "/v", "itor", "/t", "REG_SZ", "/d", "\"$exe\" --background", "/f")
     else listOf("reg", "delete", key, "/v", "itor", "/f")
@@ -89,7 +91,9 @@ fun main(args: Array<String>) {
         var model by remember { mutableStateOf<Model?>(null) }
         var startError by remember { mutableStateOf<String?>(null) }
         var visible by remember { mutableStateOf(!background) }
-        var screen by remember { mutableStateOf(Screen.HOME) }
+        // --screen=day|team|settings opens that tab first (handy for the demo and for testing).
+        var screen by remember { mutableStateOf(args.firstOrNull { it.startsWith("--screen=") }
+            ?.substringAfter('=')?.uppercase()?.let { name -> Screen.entries.firstOrNull { it.name == name } } ?: Screen.HOME) }
         var askIt by remember { mutableStateOf<String?>(null) }
         var askItOpen by remember { mutableStateOf(false) }
         var cfg by remember { mutableStateOf(config) }
@@ -104,7 +108,7 @@ fun main(args: Array<String>) {
                     h.start()
                     if (!h.waitReady()) error("The helper did not start. See ${File(Paths.data, "helper.log")}")
                     helper = h
-                    model = Model(Api(h.baseUrl, h.key), scope).also { it.start() }
+                    model = Model(Api(h.baseUrl, h.key), scope, hasGemini = c.geminiKey.isNotBlank()).also { it.start() }
                 } catch (e: Exception) {
                     h.stop(); startError = e.message
                 }
@@ -141,7 +145,7 @@ fun main(args: Array<String>) {
         ) {
             ItorTheme {
                 Column(Modifier.fillMaxSize().background(colors.bg)) {
-                    TopBar(screen) { screen = it }
+                    TopBar(screen, cfg.showTeam) { screen = it }
                     Box(Modifier.fillMaxSize()) {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
                             val m = model
@@ -158,6 +162,7 @@ fun main(args: Array<String>) {
                                     onNoticeSeen = { cfg = cfg.copy(noticeSeen = true); ConfigStore.save(cfg) },
                                 )
                                 screen == Screen.DAY -> MyDay(m)
+                                screen == Screen.TEAM -> Team(m)
                                 else -> Settings(cfg, demo, m) { updated ->
                                     cfg = updated; config = updated
                                     ConfigStore.save(updated); applyAutostart(updated.autostart)
@@ -175,7 +180,7 @@ fun main(args: Array<String>) {
 }
 
 @Composable
-private fun TopBar(screen: Screen, onSelect: (Screen) -> Unit) {
+private fun TopBar(screen: Screen, showTeam: Boolean, onSelect: (Screen) -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(colors.surface).border(width = 0.dp, color = colors.border).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -183,7 +188,8 @@ private fun TopBar(screen: Screen, onSelect: (Screen) -> Unit) {
     ) {
         M("itor", 14, weight = FontWeight.Medium)
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.End)) {
-            listOf(Screen.HOME to "Home", Screen.DAY to "My day", Screen.SETTINGS to "Settings").forEach { (target, label) ->
+            listOfNotNull(Screen.HOME to "Home", Screen.DAY to "My day", if (showTeam) Screen.TEAM to "Team" else null,
+                Screen.SETTINGS to "Settings").forEach { (target, label) ->
                 T(label, 13, if (target == screen) FontWeight.SemiBold else FontWeight.Normal,
                     if (target == screen) colors.text else colors.muted, Modifier.clickable { onSelect(target) })
             }

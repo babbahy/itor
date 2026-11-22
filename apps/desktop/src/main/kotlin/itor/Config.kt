@@ -13,6 +13,7 @@ data class Config(
     val companyKey: String = "",
     val autostart: Boolean = true,
     val noticeSeen: Boolean = false,
+    val showTeam: Boolean = false,
 )
 
 object Paths {

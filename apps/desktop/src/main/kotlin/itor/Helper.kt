@@ -16,8 +16,9 @@ import java.util.Base64
  * - Development: runs `python -m services.agent.serve` from the repository's .venv.
  */
 class Helper(private val config: Config) {
-    val port: Int = freePort()
-    val key: String = randomKey()
+    // ITOR_DEV_PORT / ITOR_DEV_KEY: fixed values for testing; normally a free port and a random key.
+    val port: Int = System.getenv("ITOR_DEV_PORT")?.toIntOrNull() ?: freePort()
+    val key: String = System.getenv("ITOR_DEV_KEY")?.takeIf { it.length >= 16 } ?: randomKey()
     val baseUrl = "http://127.0.0.1:$port"
     private var process: Process? = null
 

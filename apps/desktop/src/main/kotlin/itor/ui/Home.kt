@@ -10,11 +10,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +28,7 @@ import itor.Diagnosis
 import itor.FixState
 import itor.HomeStatus
 import itor.Model
+import itor.Step
 import itor.Tone
 
 @Composable
@@ -34,9 +39,18 @@ fun Home(model: Model, onAskIT: (String?) -> Unit, onMyDay: () -> Unit, noticeSe
     val fix by model.fix.collectAsState()
     val day by model.worktime.collectAsState()
     val home = model.homeStatus(status, readiness, down)
+    val approval by model.approval.collectAsState()
+    val mood = when {
+        fix is FixState.Checking || (approval as? Approval.QuickFix)?.running == true ||
+            (approval as? Approval.StopTask)?.running == true -> Mood.WORKING
+        home.offline -> Mood.OFFLINE
+        home.tone == Tone.WARN -> Mood.WARN
+        else -> Mood.CALM
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!noticeSeen) Notice(onNoticeSeen)
+        PixelField(mood)
         StatusCard(home)
         when (val state = fix) {
             FixState.Idle -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -44,13 +58,7 @@ fun Home(model: Model, onAskIT: (String?) -> Unit, onMyDay: () -> Unit, noticeSe
                 Btn("Ask IT", { onAskIT(null) }, Modifier.fillMaxWidth(), enabled = !down, icon = "message-square", big = true)
             }
             FixState.Describing -> Describe(model, down)
-            FixState.Checking -> Card {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Spinner()
-                    T("Checking your PC and connection", 13, color = colors.muted)
-                }
-                M("the local AI can take up to 2 min on this PC", 11, colors.muted)
-            }
+            is FixState.Checking -> StepList(state.steps, state.startedAt)
             is FixState.Answer -> Answer(model, state, onAskIT)
             is FixState.Failed -> Card(borderColor = colors.warn) {
                 T(state.message, 13)
@@ -189,3 +197,35 @@ fun ApprovalDialog(model: Model) {
 }
 
 private data class Sextet(val a: String, val b: String, val c: String, val d: Boolean, val e: Boolean, val f: String?)
+
+/** Live check progress: one line per real step, typed in, empty box while running, filled when done. */
+@Composable
+private fun StepList(steps: List<Step>, startedAt: Long) {
+    Card {
+        Label("checking your pc and connection")
+        steps.forEachIndexed { index, step ->
+            val running = !step.done && index == steps.lastIndex
+            StepLine(step, running, startedAt)
+        }
+    }
+}
+
+@Composable
+private fun StepLine(step: Step, running: Boolean, startedAt: Long) {
+    val text = step.detail
+    var shown by remember(step.label) { mutableIntStateOf(0) }
+    LaunchedEffect(text) {
+        if (shown > text.length) shown = 0
+        while (shown < text.length) { delay(22); shown++ }
+    }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    if (running) LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(250) } }
+    val color = when { step.failed -> colors.warn; step.done -> colors.text; else -> colors.muted }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        M(if (step.done) "\u25A0" else "\u25A1", 12, color)
+        Spacer(Modifier.width(10.dp))
+        M(step.label.padEnd(9), 12, colors.text)
+        M(text.take(shown), 12, color, modifier = Modifier.weight(1f))
+        if (running) M("${(now - startedAt) / 1000}s", 12, colors.muted)
+    }
+}

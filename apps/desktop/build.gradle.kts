@@ -23,6 +23,8 @@ compose.desktop {
         mainClass = "itor.MainKt"
         // `gradlew run -Pdemo` shows the demo menu.
         if (project.hasProperty("demo")) args += "--demo"
+        // `gradlew run -Pscreen=team` opens that tab first.
+        (project.findProperty("screen") as String?)?.let { args += "--screen=$it" }
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
             packageName = "itor"
