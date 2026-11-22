@@ -152,6 +152,8 @@ data class PresenceFrame(
     val face: List<Double>? = null,
     val posture: PostureInfo? = null,
     val lookingDown: Boolean = false,
+    val head: Double? = null,
+    val usual: Double? = null,
 )
 
 class ApiError(message: String) : Exception(message)

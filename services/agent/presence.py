@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import sys
 import threading
+from collections import deque
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -58,6 +59,8 @@ class PresenceFrame(BaseModel):
     face: list[float] | None = None  # x, y, w, h in 0..1
     posture: Posture | None = None
     looking_down: bool = False
+    head: float | None = None   # current head pitch (bigger = looking further down)
+    usual: float | None = None  # learned pitch when looking at the screen
 
 
 class PresenceReport(BaseModel):
@@ -178,6 +181,8 @@ class PresenceWatcher:
         self.head_calibrated = False
         self.down_since: float | None = None
         self._last_pitch: float | None = None
+        self._pitches: deque[float] = deque(maxlen=600)
+        self._last_sample = float("-inf")
 
     def start(self) -> None:
         if self.enabled and self._thread is None:
@@ -205,10 +210,14 @@ class PresenceWatcher:
         if not seen:
             self.down_since = None
             return
+        if has_face and pitch is not None and not self.head_calibrated and now - self._last_sample >= 1.0:
+            # Learn the usual "looking at the screen" pitch: a low value among the last 10 minutes (one sample
+            # per second). Looking down only makes the pitch bigger, so it does not drag this value with it.
+            self._last_sample = now
+            self._pitches.append(pitch)
+            if len(self._pitches) >= 5:
+                self.head_baseline = sorted(self._pitches)[int(len(self._pitches) * 0.3)]
         down = not has_face or (pitch is not None and self.head_baseline is not None and pitch > self.head_baseline + HEAD_DOWN)
-        if has_face and pitch is not None and not down and not self.head_calibrated:
-            # Slowly learn the usual "looking at the screen" pitch.
-            self.head_baseline = pitch if self.head_baseline is None else 0.9 * self.head_baseline + 0.1 * pitch
         if down:
             self.down_since = self.down_since if self.down_since is not None else now
         else:
@@ -272,7 +281,7 @@ class PresenceWatcher:
                 width=int(mirrored.shape[1]), height=int(mirrored.shape[0]),
                 landmarks=[Landmark(x=x, y=y, v=v) for x, y, v in flipped_points] if flipped_points else [],
                 face=flipped_face, posture=analyse(points, self.calibration),
-                looking_down=self.down_since is not None,
+                looking_down=self.down_since is not None, head=self._last_pitch, usual=self.head_baseline,
             )
 
     def preview(self) -> PresenceFrame:

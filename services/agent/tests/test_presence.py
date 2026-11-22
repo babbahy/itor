@@ -141,6 +141,7 @@ def test_looking_down_is_timed_and_only_while_present():
         w.observe(True); w.observe_head(True, True, head_pitch(screen)); now[0] += 2
     assert w.report().looking_down_seconds == 0
     w.observe(True); w.observe_head(True, True, head_pitch(phone)); now[0] += 30
+    assert w.head_baseline == head_pitch(screen)
     assert w.report().looking_down_seconds == 30
     w.observe(True); w.observe_head(True, False, None)  # face hidden but body seen: still looking away
     assert w.report().looking_down_seconds == 30
