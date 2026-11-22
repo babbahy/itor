@@ -28,7 +28,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
             packageName = "itor"
-            packageVersion = "1.0.2"
+            packageVersion = "1.0.3"
             description = "itor: working time and IT help, even offline"
             vendor = "itor"
             // Ship the whole Java runtime: avoids missing modules (HTTP client, TLS) in the installed app.
@@ -41,6 +41,8 @@ compose.desktop {
                 shortcut = true
                 menu = true
                 upgradeUuid = "6b0b1f8e-5c6e-4c39-9a2b-1d2f0e8b7a41"
+                // itor icon for the exe, Start menu shortcut and installer (scripts/make-icon.py).
+                iconFile.set(project.file("icons/itor.ico"))
             }
         }
     }

@@ -19,9 +19,9 @@ Build the installer (needs JDK 17 and the `.venv` from `./scripts/setup.ps1`):
 ./scripts/build-desktop.ps1
 ```
 
-Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.2.msi`.
+Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.3.msi`.
 
-**Deploy (IT):** install the MSI per user (`msiexec /i itor-1.0.2.msi /qn`), plus, for the offline AI, Ollama and the model (`winget install Ollama.Ollama`, then `ollama pull qwen3.5:4b`). Without Ollama, itor uses simple rules. Each employee can set a name and a Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, settings in `%APPDATA%\itor\config.json`.
+**Deploy (IT):** install the MSI per user (`msiexec /i itor-1.0.3.msi /qn`), plus, for the offline AI, Ollama and the model (`winget install Ollama.Ollama`, then `ollama pull qwen3.5:4b`). Without Ollama, itor uses simple rules. Each employee can set a name and a Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, settings in `%APPDATA%\itor\config.json`.
 
 **Develop:** `cd apps/desktop; ./gradlew run` (add `-Pdemo` for the demo menu). In development the app runs the helper from `.venv`.
 
