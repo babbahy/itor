@@ -31,3 +31,14 @@ Read this before you work on this repo.
 - Type: Inter (or Geist) for text; JetBrains Mono with tabular numbers for every time, duration, log, status code and command.
 - Layout: compact, 12–16 px padding, 4–6 px corner radius, flat cards, no shadows.
 - Copy & icons: Lucide line icons at 1.5 px stroke. No emojis, no marketing words, no "AI-powered" badges.
+
+## Install the employee app (Windows)
+The installer is published as a GitHub Release, not in the code (it is ~100 MB). To install the latest version:
+
+```powershell
+gh release download -R babbahy/itor -p "itor-*.msi" --clobber
+msiexec /i (Get-ChildItem itor-*.msi | Select-Object -Last 1).FullName /qn
+```
+
+No admin rights needed (per-user install, in `%LOCALAPPDATA%\itor`). Start **itor** from the Start menu.
+To publish a new version: raise `packageVersion` in `apps/desktop/build.gradle.kts` (Windows refuses the same version twice), run `./scripts/build-desktop.ps1`, then `gh release create vX.Y.Z apps/desktop/build/compose/binaries/main/msi/itor-X.Y.Z.msi -R babbahy/itor`.
