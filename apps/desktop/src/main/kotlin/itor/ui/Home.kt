@@ -33,7 +33,6 @@ import itor.FixState
 import itor.HomeStatus
 import itor.Model
 import itor.OfflineAi
-import itor.OfflineAiPhase
 import itor.Step
 import itor.Tone
 
@@ -82,7 +81,7 @@ internal fun Home(
                 }
             }
         }
-        DailyPulse(day, status, offlineAi, onMyDay)
+        DailyPulse(day, onMyDay)
     }
     ApprovalDialog(model)
 }
@@ -239,22 +238,10 @@ private fun StepLine(step: Step, running: Boolean, startedAt: Long) {
 
 /** Daily value + offline protection at a glance. */
 @Composable
-private fun DailyPulse(day: itor.WorkDay?, status: itor.Status?, offlineAi: OfflineAi, onMyDay: () -> Unit) {
+private fun DailyPulse(day: itor.WorkDay?, onMyDay: () -> Unit) {
     val active = day?.activeSeconds ?: 0.0
     val lost = day?.lostSeconds ?: 0.0
     val total = (active + lost).takeIf { it > 0 } ?: 1.0
-    val setup by offlineAi.state.collectAsState()
-    val (aiText, aiColor) = when (setup.phase) {
-        OfflineAiPhase.READY -> "Local AI: ready for offline use" to colors.ok
-        OfflineAiPhase.PAUSED -> "Local AI: setup paused" to colors.warn
-        OfflineAiPhase.FAILED -> "Local AI: setup needs attention" to colors.warn
-        OfflineAiPhase.EXTERNAL -> when (status?.connectivity?.ollama?.state) {
-            "connected" -> "Local AI: ready for offline use" to colors.ok
-            null, "checking", "unknown" -> "Local AI: checking" to colors.muted
-            else -> "Local AI: unavailable · simple rules offline" to colors.warn
-        }
-        else -> "Local AI: preparing" to colors.muted
-    }
     Card {
         Row2(left = { T("Daily pulse", 14, FontWeight.SemiBold) }, right = { LinkText("Details", onMyDay); Ico("chevron-right", 14, colors.muted) })
         Row(Modifier.fillMaxWidth().height(6.dp).background(colors.border, SmallCorner)) {
@@ -265,12 +252,5 @@ private fun DailyPulse(day: itor.WorkDay?, status: itor.Status?, offlineAi: Offl
             left = { M(duration(active), 12, weight = FontWeight.Medium); M(" active", 12, colors.muted) },
             right = { M(duration(lost), 12, colors.warn, FontWeight.Medium); M(" lost to slow tools", 12, colors.muted) },
         )
-        Row(
-            Modifier.border(1.dp, colors.border, SmallCorner).padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Box(Modifier.size(6.dp).background(aiColor, SmallCorner))
-            M(aiText, 11, colors.text)
-        }
     }
 }
