@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
@@ -199,7 +201,7 @@ fun main(args: Array<String>) {
         ) {
             ItorTheme(dark = cfg.theme != "light") {
                 Column(Modifier.fillMaxSize().background(colors.bg)) {
-                    TopBar(screen, cfg.showTeam, dark = cfg.theme != "light",
+                    TopBar(screen, cfg.showTeam, dark = cfg.theme != "light", camera = model?.presence?.collectAsState()?.value,
                         onTheme = { cfg = cfg.copy(theme = if (cfg.theme == "light") "dark" else "light"); ConfigStore.save(cfg) },
                     ) { screen = it }
                     Box(Modifier.fillMaxSize()) {
@@ -257,7 +259,7 @@ fun main(args: Array<String>) {
 }
 
 @Composable
-private fun TopBar(screen: Screen, showTeam: Boolean, dark: Boolean, onTheme: () -> Unit, onSelect: (Screen) -> Unit) {
+private fun TopBar(screen: Screen, showTeam: Boolean, dark: Boolean, camera: Presence? = null, onTheme: () -> Unit, onSelect: (Screen) -> Unit) {
     val tabs = remember { mutableStateMapOf<Screen, Pair<Float, Float>>() } // x and width in px, in window coordinates
     Column(Modifier.fillMaxWidth().background(colors.surface)) {
         Row(
@@ -274,6 +276,16 @@ private fun TopBar(screen: Screen, showTeam: Boolean, dark: Boolean, onTheme: ()
                         Modifier.clickable { onSelect(target) }.onGloballyPositioned {
                             tabs[target] = it.positionInRoot().x to it.size.width.toFloat()
                         })
+                }
+                // Camera indicator: always visible while the webcam is in use (transparency).
+                if (camera != null && camera.state in setOf("starting", "present", "away")) {
+                    Row(
+                        Modifier.border(1.dp, colors.border, itor.ui.SmallCorner).padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Box(Modifier.size(5.dp).background(if (camera.state == "present") colors.ok else colors.warn, itor.ui.SmallCorner))
+                        M("cam", 10, colors.muted)
+                    }
                 }
                 // Light / dark toggle: shows the mode you switch to.
                 Box(Modifier.clickable(onClick = onTheme)) {

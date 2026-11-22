@@ -111,7 +111,17 @@ fun MyDay(model: Model) {
             d?.frozenApps?.filterValues { it >= 30 }?.forEach { (app, seconds) ->
                 Row2(left = { M("frozen: $app", 12, colors.muted) }, right = { M(duration(seconds), 12) })
             }
-            T("Active: mouse or keyboard used in the last 2 min. Lost: you were working but a tool got in the way.", 12, color = colors.muted)
+            val cam = model.presence.collectAsState().value
+            if (cam?.enabled == true) Row2(
+                left = { T("Webcam presence", 13, color = colors.muted) },
+                right = { M(when (cam.state) { "present" -> "at desk"; "away" -> "away"; "no_camera" -> "no webcam"; "error" -> "stopped"; else -> "starting" }, 12,
+                    if (cam.state == "present") colors.ok else if (cam.state == "away") colors.warn else colors.muted) },
+            )
+            T(
+                if (cam?.enabled == true) "Active: at your desk (webcam) or mouse/keyboard used in the last 2 min. Lost: you were working but a tool got in the way."
+                else "Active: mouse or keyboard used in the last 2 min. Lost: you were working but a tool got in the way.",
+                12, color = colors.muted,
+            )
             Btn(if (d?.blocked == true) "I am not blocked anymore" else "I am blocked", { model.setBlocked(d?.blocked != true) }, icon = "hand")
         }
         Card {
@@ -160,6 +170,7 @@ internal fun Settings(config: Config, demo: Boolean, model: Model, offlineAi: Of
     var autostart by remember { mutableStateOf(config.autostart) }
     var showTeam by remember { mutableStateOf(config.showTeam) }
     var showDemo by remember { mutableStateOf(config.showDemo) }
+    var webcam by remember { mutableStateOf(config.webcamPresence) }
     val setup by offlineAi.state.collectAsState()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OfflineAiSetup(offlineAi, showReady = true)
@@ -201,8 +212,15 @@ internal fun Settings(config: Config, demo: Boolean, model: Model, offlineAi: Of
                 Checkbox(showDemo, { showDemo = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
                 T("Show demo tools", 13)
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(webcam, { webcam = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
+                Column {
+                    T("Use my webcam to know if I'm at my desk", 13)
+                    T("On this PC only. No image is saved or sent: only present / away. Off by default.", 11, color = colors.muted)
+                }
+            }
             Btn("Save and restart helper", {
-                onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart, showTeam = showTeam, showDemo = showDemo))
+                onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart, showTeam = showTeam, showDemo = showDemo, webcamPresence = webcam))
             }, primary = true)
         }
         if (demo || showDemo) Card {

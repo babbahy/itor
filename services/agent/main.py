@@ -30,7 +30,8 @@ from .storage import Store
 from .sync import LocalSyncService, SyncStatus
 from .telemetry import LocalTelemetryProvider
 from .workload import SCENARIOS, WorkloadError, WorkloadManager
-from .worktime import WorkDay, WorkDayView, WorktimeTracker
+from .worktime import WorkDay, WorkDayView, WorktimeTracker, windows_idle_seconds
+from .presence import PresenceReport, PresenceWatcher, combined_idle
 
 
 class ServiceReport(BaseModel):
@@ -113,6 +114,9 @@ class Agent:
             self.workload, self.telemetry, self.store, self.recheck_action, settings.action_expiry_seconds,
         )
         self.worktime = WorktimeTracker(self.store, settings.employee_name, settings.idle_seconds)
+        # Optional webcam presence (opt-in): someone at the desk counts as active even without input.
+        self.presence = PresenceWatcher(settings.webcam_presence)
+        self.worktime.idle_reader = combined_idle(windows_idle_seconds, self.presence)
         self.company_sender = CompanySender(self.store, settings.company_url, settings.company_key)
         self.company = CompanyServer(self.store, settings.demo_team)
         self.incidents = IncidentLog(self.store, settings.employee_name, on_closed=self.company_sender.queue_incident)
@@ -243,6 +247,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.agent = service
         await asyncio.to_thread(service.telemetry.capture)
         await service.connectivity_status()
+        service.presence.start()
         sampling = asyncio.create_task(service.sample_loop())
         try:
             yield
@@ -250,6 +255,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             sampling.cancel()
             with suppress(asyncio.CancelledError):
                 await sampling
+            await asyncio.to_thread(service.presence.stop)
             await service.connectivity.close()
             try:
                 await service.remediation.close()
@@ -422,6 +428,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def check_connection(service: LocalAgent) -> ConnectivityReport:
         service.connectivity_report = await service.connectivity.inspect(probe=True)
         return service.connectivity_report
+
+    @app.get("/api/presence")
+    async def presence(service: LocalAgent) -> PresenceReport:
+        return service.presence.report()
 
     @app.get("/api/worktime/today")
     async def worktime_today(service: LocalAgent) -> WorkDayView:

@@ -18,6 +18,8 @@ data class Config(
     val showDemo: Boolean = false,
     /** "dark" (default) or "light". */
     val theme: String = "dark",
+    /** Opt-in: use the webcam (on this PC only) to know if the employee is at the desk. */
+    val webcamPresence: Boolean = false,
 )
 
 object Paths {

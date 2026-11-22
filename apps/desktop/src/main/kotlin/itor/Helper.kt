@@ -41,6 +41,7 @@ internal class Helper(private val config: Config, private val ollama: OllamaEndp
         env["ITOR_AGENT_KEY"] = key
         env["ITOR_AGENT_PORT"] = port.toString()
         env["ITOR_DB_PATH"] = File(Paths.data, "itor.sqlite3").absolutePath
+        env["ITOR_WEBCAM_PRESENCE"] = if (config.webcamPresence) "1" else "0"
         ollama?.let {
             env["ITOR_OLLAMA_URL"] = it.url
             env["ITOR_OLLAMA_MODEL"] = it.model

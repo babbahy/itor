@@ -134,6 +134,9 @@ data class Team(
     val tickets: List<TeamTicket> = emptyList(),
 )
 
+@Serializable
+data class Presence(val enabled: Boolean = false, val state: String = "off", val secondsSinceSeen: Double? = null, val detail: String = "")
+
 class ApiError(message: String) : Exception(message)
 
 /** Talks to the local helper on 127.0.0.1. */
@@ -190,6 +193,7 @@ class Api(private val baseUrl: String, private val key: String) {
     suspend fun company() = get("company/status", CompanyStatus.serializer())
     suspend fun fixes() = get("fixes", ListSerializer(Fix.serializer()))
     suspend fun team() = get("company/team", Team.serializer())
+    suspend fun presence() = get("presence", Presence.serializer())
 
     suspend fun preflight() = post("preflight", "{}", Preflight.serializer())
 

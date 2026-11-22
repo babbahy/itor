@@ -44,6 +44,7 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
     val ticketError = MutableStateFlow<String?>(null)
     val sendingTicket = MutableStateFlow(false)
     val team = MutableStateFlow<Team?>(null)
+    val presence = MutableStateFlow<Presence?>(null)
 
     private val jobs = mutableListOf<Job>()
 
@@ -55,6 +56,12 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
         jobs += poll(5_000) {
             worktime.value = api.worktime()
             company.value = api.company()
+        }
+        jobs += scope.launch {
+            while (isActive) {
+                runCatching { presence.value = api.presence() }
+                delay(3_000)
+            }
         }
         scope.launch { runCatching { fixes.value = api.fixes() } }
     }

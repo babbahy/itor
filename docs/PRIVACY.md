@@ -2,6 +2,7 @@
 
 ## What itor measures
 - **Time clock:** only whether the mouse or keyboard was used recently (seconds since the last input). Never which keys, never what is typed.
+- **Webcam presence (optional, off by default):** if the employee turns it on in Settings, itor looks at one webcam image every 2 seconds, on the PC, to know if someone is at the desk (MediaPipe face detection, pose as a backup). Images stay in memory and are dropped right away: nothing is saved or sent. Only "present / away" is used, so reading or a call without touching the mouse counts as active. A "cam" indicator is shown while it runs, and the camera light stays on.
 - **Frozen apps:** the name of the front app, only when Windows reports it as "not responding".
 - **PC readings:** total CPU, memory and disk, network state, and the demo workload itor starts.
 - itor never captures screenshots, websites, browser history, documents, network traffic or process command lines.

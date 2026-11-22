@@ -29,6 +29,7 @@ class Settings:
     company_url: str | None = None
     company_key: str = ""
     demo_team: bool = True
+    webcam_presence: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -55,6 +56,7 @@ class Settings:
             company_url=getenv("ITOR_COMPANY_URL") or None,
             company_key=getenv("ITOR_COMPANY_KEY", ""),
             demo_team=getenv("ITOR_DEMO_TEAM", "1") not in ("0", "false", "no"),
+            webcam_presence=getenv("ITOR_WEBCAM_PRESENCE", "0") in ("1", "true", "yes"),
         )
         if not settings.api_key:
             raise RuntimeError("Set ITOR_AGENT_KEY before starting the device agent.")
