@@ -31,7 +31,8 @@ from .sync import LocalSyncService, SyncStatus
 from .telemetry import LocalTelemetryProvider
 from .workload import SCENARIOS, WorkloadError, WorkloadManager
 from .worktime import WorkDay, WorkDayView, WorktimeTracker, windows_idle_seconds
-from .presence import PresenceReport, PresenceWatcher, combined_idle
+from .presence import PresenceFrame, PresenceReport, PresenceWatcher, combined_idle
+from .posture import Posture
 
 
 class ServiceReport(BaseModel):
@@ -432,6 +433,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/presence")
     async def presence(service: LocalAgent) -> PresenceReport:
         return service.presence.report()
+
+    @app.get("/api/presence/frame")
+    async def presence_frame(service: LocalAgent) -> PresenceFrame:
+        return service.presence.preview()
+
+    @app.post("/api/presence/calibrate")
+    async def presence_calibrate(service: LocalAgent) -> Posture:
+        return service.presence.calibrate()
 
     @app.get("/api/worktime/today")
     async def worktime_today(service: LocalAgent) -> WorkDayView:

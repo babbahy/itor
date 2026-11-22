@@ -19,8 +19,27 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from .posture import Calibration, Posture, analyse, measures
+
 PresenceState = Literal["off", "starting", "present", "away", "no_camera", "error"]
 MODELS = Path(__file__).with_name("models")
+
+
+class Landmark(BaseModel):
+    x: float
+    y: float
+    v: float
+
+
+class PresenceFrame(BaseModel):
+    """Live preview for the Camera tab. Mirrored (selfie view). Only kept in memory while the tab is open."""
+    state: PresenceState
+    jpeg_base64: str | None = None
+    width: int = 0
+    height: int = 0
+    landmarks: list[Landmark] = []
+    face: list[float] | None = None  # x, y, w, h in 0..1
+    posture: Posture | None = None
 
 
 class PresenceReport(BaseModel):
@@ -63,12 +82,25 @@ class MediaPipeDetector:
             num_poses=1))
 
     def __call__(self, rgb_frame: Any) -> bool:
+        return self.analyse(rgb_frame, with_pose=False)[0]
+
+    def analyse(self, rgb_frame: Any, with_pose: bool) -> tuple[bool, list[tuple[float, float, float]] | None, list[float] | None]:
+        """(someone there, pose points, face box). The pose model runs only when needed (preview, or no face)."""
         image = self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=rgb_frame)
-        if self.face.detect(image).detections:
-            return True
-        landmarks = self.pose.detect(image).pose_landmarks
-        # Nose or a shoulder clearly visible counts as someone there (Birdy's posture landmarks).
-        return bool(landmarks) and max(landmarks[0][i].visibility for i in (0, 11, 12)) >= 0.5
+        faces = self.face.detect(image).detections
+        face = None
+        if faces:
+            box = faces[0].bounding_box
+            h, w = rgb_frame.shape[0], rgb_frame.shape[1]
+            face = [box.origin_x / w, box.origin_y / h, box.width / w, box.height / h]
+        points = None
+        if with_pose or not faces:
+            landmarks = self.pose.detect(image).pose_landmarks
+            if landmarks:
+                points = [(p.x, p.y, p.visibility) for p in landmarks[0]]
+        # Face, or nose / a shoulder clearly visible, counts as someone there (Birdy's landmarks).
+        seen = bool(faces) or (points is not None and max(points[i][2] for i in (0, 11, 12)) >= 0.5)
+        return seen, points, face
 
     def close(self) -> None:
         self.face.close()
@@ -113,6 +145,12 @@ class PresenceWatcher:
         self.last_seen: float | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        # Camera tab: faster frames and a mirrored preview, only while it is being looked at.
+        self.preview_until = 0.0
+        self.calibration: Calibration | None = None
+        self._frame: PresenceFrame | None = None
+        self._last_points: list[tuple[float, float, float]] | None = None
+        self._lock = threading.Lock()
 
     def start(self) -> None:
         if self.enabled and self._thread is None:
@@ -143,11 +181,19 @@ class PresenceWatcher:
                 return
             detector = self.detector_factory()
             while not self._stop.is_set():
+                previewing = self.clock() < self.preview_until
                 frame = source()
                 if frame is not None:
-                    self.observe(bool(detector(frame)))
-                    del frame  # never kept
-                self._stop.wait(self.interval)
+                    if previewing and hasattr(detector, "analyse"):
+                        seen, points, face = detector.analyse(frame, with_pose=True)
+                        self.observe(seen)
+                        self._store_preview(frame, points, face)
+                    else:
+                        self.observe(bool(detector(frame)))
+                        with self._lock:
+                            self._frame = None  # preview closed: drop the last image
+                    del frame  # never kept beyond the preview
+                self._stop.wait(0.12 if previewing else self.interval)
         except Exception as error:  # noqa: BLE001
             self.state, self.detail = "error", f"Presence detection stopped: {type(error).__name__}: {error}"[:200]
         finally:
@@ -155,6 +201,38 @@ class PresenceWatcher:
                 detector.close()
             if source is not None:
                 source.close()
+
+    def _store_preview(self, rgb: Any, points: list[tuple[float, float, float]] | None, face: list[float] | None) -> None:
+        import base64
+
+        import cv2
+        mirrored = cv2.flip(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), 1)
+        ok, jpeg = cv2.imencode(".jpg", mirrored, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        flipped_points = [(1 - x, y, v) for x, y, v in points] if points else None
+        flipped_face = [1 - face[0] - face[2], face[1], face[2], face[3]] if face else None
+        with self._lock:
+            self._last_points = points
+            self._frame = PresenceFrame(
+                state=self.state, jpeg_base64=base64.b64encode(jpeg.tobytes()).decode() if ok else None,
+                width=int(mirrored.shape[1]), height=int(mirrored.shape[0]),
+                landmarks=[Landmark(x=x, y=y, v=v) for x, y, v in flipped_points] if flipped_points else [],
+                face=flipped_face, posture=analyse(points, self.calibration),
+            )
+
+    def preview(self) -> PresenceFrame:
+        """Called by the Camera tab (several times a second). Keeps preview mode on for 3 more seconds."""
+        self.preview_until = self.clock() + 3.0
+        with self._lock:
+            return self._frame or PresenceFrame(state=self.state)
+
+    def calibrate(self) -> Posture:
+        """Birdy's calibration: remember the current (straight) posture as the reference."""
+        with self._lock:
+            reference = measures(self._last_points) if self._last_points else None
+        if reference is None:
+            return Posture(label="Unknown", ok=False, calibrated=self.calibration is not None)
+        self.calibration = reference
+        return analyse(self._last_points, self.calibration)
 
     def idle_seconds(self) -> float | None:
         """For the time clock: 0 when someone is at the desk, time since last seen when away, None if unknown."""

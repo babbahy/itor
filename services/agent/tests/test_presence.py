@@ -77,3 +77,54 @@ def test_frames_are_analysed_and_dropped():
     time.sleep(0.1)
     w.stop()
     assert w.state == "present" and seen == ["detector closed", "camera released"]
+
+
+def straight(width=0.4, gap=0.45, tilt=0.0, nose_y=0.4):
+    """Pose points (33) with ears, nose and shoulders set."""
+    points = [(0.5, 0.5, 0.9)] * 33
+    shoulder_y = 0.7
+    points[0] = (0.5, nose_y, 0.9)
+    points[7] = (0.6, shoulder_y - gap * width, 0.9)
+    points[8] = (0.4, shoulder_y - gap * width, 0.9)
+    points[11] = (0.5 + width / 2, shoulder_y, 0.9)
+    points[12] = (0.5 - width / 2, shoulder_y + tilt * width, 0.9)
+    return points
+
+
+def test_posture_rules_ported_from_birdy():
+    from services.agent.posture import analyse, measures
+    assert analyse(None, None).label == "Unknown"
+    assert analyse(straight(), None).label == "Good posture"
+    assert analyse(straight(gap=0.2), None).label == "Slouching"
+    assert analyse(straight(tilt=0.2), None).label == "Shoulder tilt"
+    assert analyse(straight(width=0.7), None).label == "Too close"
+    reference = measures(straight())
+    assert analyse(straight(), reference).label == "Good posture"
+    assert analyse(straight(width=0.55), reference).label == "Too close"
+    assert analyse(straight(gap=0.1), reference).label == "Slouching"
+    assert analyse(straight(nose_y=0.25), reference).label == "Standing"
+
+
+def test_preview_is_mirrored_and_only_while_open():
+    import numpy as np
+
+    clock = Clock()
+
+    class Detector:
+        def __call__(self, frame):
+            return True
+
+        def analyse(self, frame, with_pose):
+            return True, straight(), [0.1, 0.2, 0.3, 0.4]
+
+        def close(self):
+            pass
+
+    w = PresenceWatcher(True, clock=clock, source_factory=lambda: None, detector_factory=Detector)
+    assert w.preview().jpeg_base64 is None  # nothing yet
+    w._store_preview(np.zeros((48, 64, 3), dtype=np.uint8), straight(), [0.1, 0.2, 0.3, 0.4])
+    frame = w.preview()
+    assert frame.jpeg_base64 and frame.width == 64 and frame.height == 48
+    assert abs(frame.face[0] - 0.6) < 1e-9          # mirrored: 1 - 0.1 - 0.3
+    assert frame.posture.label == "Good posture"
+    assert w.calibrate().calibrated is True

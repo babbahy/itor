@@ -52,6 +52,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import itor.ui.AskIt
+import itor.ui.Camera
 import itor.ui.Home
 import itor.ui.ItorTheme
 import itor.ui.M
@@ -67,7 +68,7 @@ import java.io.RandomAccessFile
 import java.nio.channels.FileLock
 import kotlin.system.exitProcess
 
-enum class Screen { HOME, DAY, TEAM, SETTINGS }
+enum class Screen { HOME, DAY, TEAM, CAMERA, SETTINGS }
 
 /** Tray icon: a plain dark square with an "i". No gradient. */
 object TrayIcon : Painter() {
@@ -201,7 +202,7 @@ fun main(args: Array<String>) {
         ) {
             ItorTheme(dark = cfg.theme != "light") {
                 Column(Modifier.fillMaxSize().background(colors.bg)) {
-                    TopBar(screen, cfg.showTeam, dark = cfg.theme != "light", camera = model?.presence?.collectAsState()?.value,
+                    TopBar(screen, cfg.showTeam, showCamera = cfg.webcamPresence, dark = cfg.theme != "light", camera = model?.presence?.collectAsState()?.value,
                         onTheme = { cfg = cfg.copy(theme = if (cfg.theme == "light") "dark" else "light"); ConfigStore.save(cfg) },
                     ) { screen = it }
                     Box(Modifier.fillMaxSize()) {
@@ -240,6 +241,7 @@ fun main(args: Array<String>) {
                                         )
                                         Screen.DAY -> MyDay(m)
                                         Screen.TEAM -> Team(m)
+                                        Screen.CAMERA -> Camera(m)
                                         Screen.SETTINGS -> Settings(cfg, demo, m, offlineAi) { updated ->
                                             cfg = updated; config = updated
                                             ConfigStore.save(updated); applyAutostart(updated.autostart)
@@ -259,7 +261,7 @@ fun main(args: Array<String>) {
 }
 
 @Composable
-private fun TopBar(screen: Screen, showTeam: Boolean, dark: Boolean, camera: Presence? = null, onTheme: () -> Unit, onSelect: (Screen) -> Unit) {
+private fun TopBar(screen: Screen, showTeam: Boolean, showCamera: Boolean = false, dark: Boolean, camera: Presence? = null, onTheme: () -> Unit, onSelect: (Screen) -> Unit) {
     val tabs = remember { mutableStateMapOf<Screen, Pair<Float, Float>>() } // x and width in px, in window coordinates
     Column(Modifier.fillMaxWidth().background(colors.surface)) {
         Row(
@@ -270,6 +272,7 @@ private fun TopBar(screen: Screen, showTeam: Boolean, dark: Boolean, camera: Pre
             M("itor", 14, weight = FontWeight.Medium)
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                 listOfNotNull(Screen.HOME to "Home", Screen.DAY to "My day", if (showTeam) Screen.TEAM to "Team" else null,
+                    if (showCamera) Screen.CAMERA to "Camera" else null,
                     Screen.SETTINGS to "Settings").forEach { (target, label) ->
                     T(label, 13, if (target == screen) FontWeight.SemiBold else FontWeight.Normal,
                         if (target == screen) colors.text else colors.muted,
@@ -279,13 +282,7 @@ private fun TopBar(screen: Screen, showTeam: Boolean, dark: Boolean, camera: Pre
                 }
                 // Camera indicator: always visible while the webcam is in use (transparency).
                 if (camera != null && camera.state in setOf("starting", "present", "away")) {
-                    Row(
-                        Modifier.border(1.dp, colors.border, itor.ui.SmallCorner).padding(horizontal = 6.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Box(Modifier.size(5.dp).background(if (camera.state == "present") colors.ok else colors.warn, itor.ui.SmallCorner))
-                        M("cam", 10, colors.muted)
-                    }
+                    Box(Modifier.size(7.dp).background(if (camera.state == "present") colors.ok else colors.warn, itor.ui.SmallCorner))
                 }
                 // Light / dark toggle: shows the mode you switch to.
                 Box(Modifier.clickable(onClick = onTheme)) {

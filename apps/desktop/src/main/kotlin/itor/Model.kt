@@ -134,6 +134,9 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
         else -> "adapter up · internet not tested"
     }
 
+    suspend fun presenceFrame(): PresenceFrame? = runCatching { api.presenceFrame() }.getOrNull()
+    suspend fun calibratePosture(): PostureInfo? = runCatching { api.calibratePosture() }.getOrNull()
+
     fun loadTeam() = scope.launch { runCatching { team.value = api.team() } }
 
     fun closeFix() { fix.value = FixState.Idle; lastResult.value = null }
