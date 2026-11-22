@@ -217,6 +217,7 @@ class Api(private val baseUrl: String, private val key: String) {
 
     // Demo
     suspend fun demoMorning() = post("demo/worktime", "{}", WorkDay.serializer())
+    suspend fun demoStop() = post("demo/stop", obj("confirm" to true), JsonObject.serializer())
     suspend fun demoCloud(enabled: Boolean) = post("demo/cloud", obj("enabled" to enabled), JsonObject.serializer())
     suspend fun demoStart(scenario: String) = post("demo/start", obj("scenario" to scenario), JsonObject.serializer())
 }

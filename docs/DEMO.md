@@ -1,10 +1,11 @@
 # Five-minute demo (live)
 
 ## Before you go on stage
-1. itor 1.0.9 installed and open (Start menu → itor). **Settings → Show manager view (demo)** ticked.
-2. Ollama running with `qwen3.5:4b`. Do **Fix my problem** once before going on stage: the first local-AI answer is the slowest (it loads the model).
-3. Close heavy apps: the local AI runs on the processor.
-4. Know where to turn Wi-Fi off and on (taskbar network icon, or airplane mode).
+1. itor 1.0.10 installed and open (Start menu → itor). **Settings → Show manager view (demo)** ticked.
+2. **itor demo panel** installed and open (Start menu → itor demo panel), in a corner of the screen or on your laptop's screen if you project the other one. Its buttons trigger the scenarios: stuck video export, memory leak, sync loop, outage, demo morning.
+3. Ollama running with `qwen3.5:4b`. Do **Fix my problem** once before going on stage: the first local-AI answer is the slowest (it loads the model).
+4. Close heavy apps: the local AI runs on the processor.
+5. Know where to turn Wi-Fi off and on (taskbar network icon, or airplane mode).
 
 ## Script
 

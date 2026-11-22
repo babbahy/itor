@@ -21,3 +21,6 @@ apps/desktop/build/
 apps/desktop/.gradle/
 apps/desktop/.kotlin/
 apps/desktop/resources/windows/itor-helper/
+apps/demo-panel/build/
+apps/demo-panel/.gradle/
+apps/demo-panel/.kotlin/

@@ -204,6 +204,7 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
 
     // Demo
 
+    fun demoStop() = scope.launch { runCatching { api.demoStop(); status.value = api.status() } }
     fun demoMorning() = scope.launch { runCatching { worktime.value = api.demoMorning() } }
     fun demoOutage(on: Boolean) = scope.launch { runCatching { api.demoCloud(on); status.value = api.status() } }
     /** Demo scenarios: video_export (CPU), memory_leak (memory), sync_loop (CPU + disk). */

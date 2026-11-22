@@ -22,6 +22,7 @@ Read this before you work on this repo.
 ## Project layout
 - `services/agent/` — Python helper (measures the PC, time clock, AI, fixes, IT tickets). Tested with pytest.
 - `apps/desktop/` — **the employee app, Kotlin (Compose Desktop)**. Installed with an MSI on every PC. Talks to the helper on 127.0.0.1.
+- `apps/demo-panel/` — **itor demo panel**, a separate presenter app (Kotlin) with buttons that simulate problems. Reuses `apps/desktop` code. Build: `./scripts/build-demo-panel.ps1`.
 - `apps/web/` — manager / IT console (Team ranking, tickets). Employees don't use it.
 
 ## Design rules (no "AI slop" UI)

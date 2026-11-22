@@ -19,9 +19,11 @@ Build the installer (needs JDK 17 and the `.venv` from `./scripts/setup.ps1`):
 ./scripts/build-desktop.ps1
 ```
 
-Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.9.msi`.
+Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.10.msi`.
 
-**Deploy (IT):** install the MSI per user (`msiexec /i itor-1.0.9.msi /qn`), plus, for the offline AI, Ollama and the model (`winget install Ollama.Ollama`, then `ollama pull qwen3.5:4b`). Without Ollama, itor uses simple rules. Each employee can set a name and a Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, settings in `%APPDATA%\itor\config.json`.
+**Deploy (IT):** install the MSI per user (`msiexec /i itor-1.0.10.msi /qn`), plus, for the offline AI, Ollama and the model (`winget install Ollama.Ollama`, then `ollama pull qwen3.5:4b`). Without Ollama, itor uses simple rules. Each employee can set a name and a Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, settings in `%APPDATA%\itor\config.json`.
+
+**Demo panel (presenter only):** a second, separate app, **itor demo panel** (`apps/demo-panel`), with buttons that simulate problems: stuck video export, memory leak, sync loop, network outage, demo morning. Build it with `./scripts/build-demo-panel.ps1`. It works only while itor runs with **Settings → Show demo tools** on: itor then writes its local address and key to `%LOCALAPPDATA%\itor-data\demo-access.json` (readable by your Windows account only, deleted when itor quits). Employees don't get this app.
 
 **Develop:** `cd apps/desktop; ./gradlew run` (add `-Pdemo` for the demo menu). In development the app runs the helper from `.venv`.
 

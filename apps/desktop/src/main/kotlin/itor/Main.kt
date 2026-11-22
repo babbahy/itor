@@ -124,6 +124,7 @@ fun main(args: Array<String>) {
                     h.start()
                     if (!h.waitReady()) error("The helper did not start. See ${File(Paths.data, "helper.log")}")
                     helper = h
+                    DemoAccess.update(h, demo || c.showDemo)
                     model = Model(Api(h.baseUrl, h.key), scope, hasGemini = c.geminiKey.isNotBlank()).also { it.start() }
                 } catch (e: Exception) {
                     h.stop(); startError = e.message
@@ -133,10 +134,10 @@ fun main(args: Array<String>) {
 
         DisposableEffect(Unit) {
             startHelper(cfg)
-            onDispose { model?.stop(); helper?.stop() }
+            onDispose { DemoAccess.clear(); model?.stop(); helper?.stop() }
         }
 
-        fun quit() { model?.stop(); helper?.stop(); exitApplication() }
+        fun quit() { DemoAccess.clear(); model?.stop(); helper?.stop(); exitApplication() }
         fun open(target: Screen = Screen.HOME) { screen = target; visible = true }
 
         Tray(
@@ -147,6 +148,20 @@ fun main(args: Array<String>) {
                 Item("Open itor", onClick = { open() })
                 Item("Fix my problem", onClick = { open(); model?.describe() })
                 Item("Ask IT", onClick = { open(); askIt = null; model?.resetTicket(); askItOpen = true })
+                // Presenter controls, only with Show demo tools (or --demo).
+                if (demo || cfg.showDemo) {
+                    Separator()
+                    Menu("Demo") {
+                        Item("Stuck video export", onClick = { model?.demoScenario("video_export") })
+                        Item("Memory leak", onClick = { model?.demoScenario("memory_leak") })
+                        Item("Sync loop", onClick = { model?.demoScenario("sync_loop") })
+                        Item("Stop the demo process", onClick = { model?.demoStop() })
+                        Separator()
+                        Item("Simulate outage", onClick = { model?.demoOutage(true) })
+                        Item("End outage", onClick = { model?.demoOutage(false) })
+                        Item("Add a demo morning", onClick = { model?.demoMorning() })
+                    }
+                }
                 Separator()
                 Item("Quit", onClick = { quit() })
             },
