@@ -18,6 +18,22 @@ class WorkloadError(Exception):
 
 
 @dataclass(frozen=True)
+class Scenario:
+    """A demo problem: a real, time-limited child process with a realistic app name."""
+    id: str
+    app: str
+    story: str
+    kind: str  # cpu | memory | sync (see demo_worker.py)
+
+
+SCENARIOS: dict[str, Scenario] = {
+    "video_export": Scenario("video_export", "VideoExport", "a video export is stuck and keeps the processor busy", "cpu"),
+    "memory_leak": Scenario("memory_leak", "BrowserHelper", "a browser helper keeps taking more memory (memory leak)", "memory"),
+    "sync_loop": Scenario("sync_loop", "SyncAgent", "a sync agent is stuck in a loop, keeping the processor and disk busy", "sync"),
+}
+
+
+@dataclass(frozen=True)
 class ProcessIdentity:
     parent_pid: int
     start: int | float
@@ -57,6 +73,7 @@ class OwnedProcess:
     started_at: datetime
     expires_at: datetime
     pidfd: int | None = None
+    scenario: Scenario = SCENARIOS["video_export"]
     last_sample: tuple[float, float] | None = None
     cpu_percent: float | None = None
 
@@ -78,7 +95,10 @@ class WorkloadManager:
         self.lock = RLock()
         self.current: OwnedProcess | None = None
 
-    def start(self) -> WorkloadStatus:
+    def start(self, scenario: str = "video_export") -> WorkloadStatus:
+        chosen = SCENARIOS.get(scenario)
+        if chosen is None:
+            raise WorkloadError("Unknown demo scenario.")
         with self.lock:
             if self.status().active:
                 raise WorkloadError("A demo workload is already running.")
@@ -88,8 +108,8 @@ class WorkloadManager:
             # Run the real Python directly, so we measure and stop the actual worker (it only needs the stdlib).
             python = getattr(sys, "_base_executable", None) if sys.platform == "win32" else None
             # Inside the packed itor-helper.exe there is no python.exe: the exe runs the worker itself.
-            command = ([sys.executable, "--demo-worker", str(self.duration)] if getattr(sys, "frozen", False)
-                       else [python or sys.executable, "-I", "-S", str(script), str(self.duration)])
+            command = ([sys.executable, "--demo-worker", str(self.duration), chosen.kind] if getattr(sys, "frozen", False)
+                       else [python or sys.executable, "-I", "-S", str(script), str(self.duration), chosen.kind])
             try:
                 handle = subprocess.Popen(
                     command,
@@ -109,7 +129,7 @@ class WorkloadManager:
 
             now = utc_now()
             self.current = OwnedProcess(new_id(), handle, process, identity, now,
-                                        now + timedelta(seconds=self.duration), pidfd=pidfd)
+                                        now + timedelta(seconds=self.duration), pidfd=pidfd, scenario=chosen)
             return self.status()
 
     @staticmethod
@@ -142,8 +162,10 @@ class WorkloadManager:
                         record.last_sample = current
             except psutil.Error:
                 record.cpu_percent = None
+            s = record.scenario
             return WorkloadStatus(active=True, id=record.id, cpu_percent=record.cpu_percent, memory_bytes=memory,
-                                  started_at=record.started_at, expires_at=record.expires_at)
+                                  started_at=record.started_at, expires_at=record.expires_at,
+                                  scenario=s.id, kind=s.kind, app=s.app, story=s.story)
 
     def stop(self, expected_id: str) -> bool:
         with self.lock:

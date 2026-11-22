@@ -33,7 +33,7 @@ data class Connectivity(
     val ollama: Service = Service(),
 )
 
-@Serializable data class Workload(val active: Boolean = false)
+@Serializable data class Workload(val active: Boolean = false, val app: String? = null, val story: String? = null)
 
 @Serializable data class Status(val connectivity: Connectivity = Connectivity(), val demo: Workload = Workload(), val model: String? = null)
 
@@ -218,6 +218,6 @@ class Api(private val baseUrl: String, private val key: String) {
     // Demo
     suspend fun demoMorning() = post("demo/worktime", "{}", WorkDay.serializer())
     suspend fun demoCloud(enabled: Boolean) = post("demo/cloud", obj("enabled" to enabled), JsonObject.serializer())
-    suspend fun demoStart() = post("demo/start", "{}", JsonObject.serializer())
+    suspend fun demoStart(scenario: String) = post("demo/start", obj("scenario" to scenario), JsonObject.serializer())
 }
 

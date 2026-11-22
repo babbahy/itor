@@ -92,7 +92,18 @@ class LocalSafeRemediationProvider:
                 del self.plans[action_id]
 
     def available(self) -> list[AvailableAction]:
-        return [AvailableAction()] if self.workload.status().active and not self.busy else []
+        current = self.workload.status()
+        return [self.describe(current)] if current.active and not self.busy else []
+
+    @staticmethod
+    def describe(current) -> AvailableAction:
+        app = current.app or "the background app"
+        return AvailableAction(
+            title=f"Stop {app}",
+            scope=f"Stop {app}, the demo process itor started ({current.story or 'it slows the PC'}). Nothing else is touched.",
+            expected_result="Frees the processor and memory it was using, then itor measures again.",
+            side_effects=f"{app} closes. Unsaved work in it would be lost (none in this demo).",
+        )
 
     def plan(self, session: PreflightSession) -> Action:
         self.expire()
@@ -107,7 +118,8 @@ class LocalSafeRemediationProvider:
                 return plan.action.model_copy(update={"approval_token": plan.token})
         if len(self.plans) >= 20:
             raise ActionError("Too many pending approvals. Cancel a plan or let it expire.", 429)
-        action = Action(session_id=session.id, expires_at=utc_now() + timedelta(seconds=self.expires_in))
+        action = Action(session_id=session.id, expires_at=utc_now() + timedelta(seconds=self.expires_in),
+                        **self.describe(current).model_dump(exclude={"action_id"}))
         plan = Plan(action, current.id, token_urlsafe(32))
         planned = self.save(plan, "awaiting_approval")
         self.plans[action.id] = plan

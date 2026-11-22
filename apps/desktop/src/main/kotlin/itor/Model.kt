@@ -165,7 +165,7 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
                         action = api.action(action.id)
                     }
                     approval.value = null
-                    lastResult.value = if (action.status == "succeeded") "Background task stopped and checked." else
+                    lastResult.value = if (action.status == "succeeded") "${action.title}: succeeded · stopped and checked" else
                         "Could not stop the task: ${action.message ?: action.status}"
                 } catch (error: Exception) {
                     approval.value = current.copy(running = false, error = error.message)
@@ -206,7 +206,11 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
 
     fun demoMorning() = scope.launch { runCatching { worktime.value = api.demoMorning() } }
     fun demoOutage(on: Boolean) = scope.launch { runCatching { api.demoCloud(on); status.value = api.status() } }
-    fun demoCpu() = scope.launch { runCatching { api.demoStart() } }
+    /** Demo scenarios: video_export (CPU), memory_leak (memory), sync_loop (CPU + disk). */
+    fun demoScenario(id: String) = scope.launch {
+        runCatching { api.demoStart(id) }.onFailure { lastResult.value = it.message }
+        runCatching { status.value = api.status() }
+    }
 
     fun stop() = jobs.forEach { it.cancel() }
 }

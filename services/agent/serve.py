@@ -19,7 +19,7 @@ def parse_port(value: str | None) -> int:
 def main(argv: list[str]) -> None:
     if len(argv) >= 3 and argv[1] == "--demo-worker":
         from services.agent.demo_worker import burn
-        burn(int(argv[2]))
+        burn(int(argv[2]), argv[3] if len(argv) > 3 else "cpu")
         return
     if sys.stdout is None or sys.stderr is None:
         # Packed without a console window: write logs to %LOCALAPPDATA%\itor-data\helper.log instead.

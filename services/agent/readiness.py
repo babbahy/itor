@@ -63,15 +63,25 @@ class ReadinessEngine:
                 record(key, label, "passed", f"{percent:.1f}% used in the latest sample.")
 
         work = snapshot.workload
-        if work.active and work.cpu_percent is not None and work.cpu_percent >= 20:
-            evidence = f"itor's temporary workload is using {work.cpu_percent:.1f}% of one CPU core."
-            record("workload", "Background workload", "warning", evidence)
-            finding("workload", "warning", "Background workload using CPU", evidence,
-                    "The workload may leave less processor time for your work apps.",
-                    "This is an app-owned demonstration. Overall device impact depends on available cores.",
+        app = work.app or "A background app"
+        heavy_memory = work.kind == "memory" and (work.memory_bytes or 0) >= 400 * 1024 * 1024
+        if work.active and (heavy_memory or (work.kind != "memory" and work.cpu_percent is not None and work.cpu_percent >= 20)):
+            if heavy_memory:
+                title = f"{app} is using a lot of memory"
+                evidence = f"{app} is using {(work.memory_bytes or 0) / 2**20:.0f} MB of memory and it keeps growing."
+                impact = "Other apps may become slow or freeze when memory runs short."
+            else:
+                title = f"{app} is slowing your PC"
+                evidence = f"{app} is using {work.cpu_percent:.1f}% of one CPU core."
+                impact = "Your work apps get less processor time and may feel slow."
+            if work.story:
+                evidence += f" What it looks like: {work.story}."
+            record("workload", "Background app", "warning", evidence)
+            finding("workload", "warning", title, evidence, impact,
+                    "This is a demo process started by itor. Overall impact depends on the PC.",
                     actions=["stop_demo_workload"] if snapshot.source == "local" else [])
         elif work.active:
-            record("workload", "Background workload", "unknown", "Waiting for a current workload CPU sample.")
+            record("workload", "Background app", "unknown", f"Measuring {app}.")
         else:
             record("workload", "Background workload", "passed", "The itor demonstration workload is idle.")
 

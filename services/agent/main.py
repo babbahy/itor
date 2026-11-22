@@ -29,7 +29,7 @@ from .remediation import ActionError, LocalSafeRemediationProvider
 from .storage import Store
 from .sync import LocalSyncService, SyncStatus
 from .telemetry import LocalTelemetryProvider
-from .workload import WorkloadError, WorkloadManager
+from .workload import SCENARIOS, WorkloadError, WorkloadManager
 from .worktime import WorkDay, WorkDayView, WorktimeTracker
 
 
@@ -75,6 +75,10 @@ class CompanyStatus(BaseModel):
     pending: int
     last_sent_at: datetime | None
     last_error: str | None
+
+
+class DemoStartInput(BaseModel):
+    scenario: str = "video_export"
 
 
 class BlockedInput(BaseModel):
@@ -377,13 +381,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return service.workload.status()
 
     @app.post("/api/demo/start", status_code=201)
-    async def start_demo(service: LocalAgent) -> WorkloadStatus:
+    async def start_demo(service: LocalAgent, body: DemoStartInput | None = None) -> WorkloadStatus:
         async with service.demo_lock:
             service.check_demo_idle()
-            service.workload.start()
+            started = service.workload.start(body.scenario if body else "video_export")
             await asyncio.to_thread(service.telemetry.capture)
-            service.store.event("demo_started", "Demo workload started", "A time-limited itor child process was started.")
+            service.store.event("demo_started", f"Demo: {started.app} started", f"Simulated problem: {started.story}.")
             return service.workload.status()
+
+    @app.get("/api/demo/scenarios")
+    async def demo_scenarios(service: LocalAgent) -> list[dict[str, str]]:
+        return [{"id": s.id, "app": s.app, "story": s.story, "kind": s.kind} for s in SCENARIOS.values()]
 
     @app.post("/api/demo/stop")
     async def stop_demo(body: DemoStop, service: LocalAgent) -> WorkloadStatus:

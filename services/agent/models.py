@@ -20,6 +20,10 @@ class Input(BaseModel):
 class WorkloadStatus(BaseModel):
     active: bool = False
     id: str | None = None
+    scenario: str | None = None
+    kind: str | None = None
+    app: str | None = None
+    story: str | None = None
     cpu_percent: float | None = None
     memory_bytes: int | None = None
     started_at: datetime | None = None

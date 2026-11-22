@@ -157,6 +157,7 @@ fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Un
     var key by remember { mutableStateOf(config.companyKey) }
     var autostart by remember { mutableStateOf(config.autostart) }
     var showTeam by remember { mutableStateOf(config.showTeam) }
+    var showDemo by remember { mutableStateOf(config.showDemo) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Card {
             T("Settings", 15, FontWeight.SemiBold)
@@ -185,15 +186,24 @@ fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Un
                 Checkbox(showTeam, { showTeam = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
                 T("Show manager view", 13)
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(showDemo, { showDemo = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
+                T("Show demo tools", 13)
+            }
             Btn("Save and restart helper", {
-                onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart, showTeam = showTeam))
+                onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart, showTeam = showTeam, showDemo = showDemo))
             }, primary = true)
         }
-        if (demo) Card {
+        if (demo || showDemo) Card {
             T("Demo", 15, FontWeight.SemiBold)
+            Btn("Add a demo morning", model::demoMorning)
+            Label("simulate a problem (a real process that slows the pc)")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Btn("Add a demo morning", model::demoMorning)
-                Btn("CPU hog", model::demoCpu)
+                Btn("Stuck video export", { model.demoScenario("video_export") })
+                Btn("Memory leak", { model.demoScenario("memory_leak") })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Btn("Sync loop", { model.demoScenario("sync_loop") })
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Btn("Simulate outage", { model.demoOutage(true) })

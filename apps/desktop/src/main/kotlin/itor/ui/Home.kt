@@ -143,11 +143,12 @@ private fun Answer(model: Model, state: FixState.Answer, onAskIT: (String?) -> U
         Divider()
         Label("what itor can try")
         if (d.recommendedActionId == "stop_demo_workload") {
-            FixRow("Stop the background task slowing your PC") { model.askStopTask(state.session) }
+            val app = model.status.collectAsState().value?.demo?.app
+            FixRow(if (app != null) "Stop $app" else "Stop the app slowing your PC") { model.askStopTask(state.session) }
         }
         fixes.filter { it.supported }.forEach { item -> FixRow(item.title) { model.askQuickFix(item) } }
         if (fixes.none { it.supported } && d.recommendedActionId == null) M("no safe fix available on this PC", 12, colors.muted)
-        result?.let { M(it, 12, if (it.contains("succeeded") || it.startsWith("Background")) colors.ok else colors.muted) }
+        result?.let { M(it, 12, if (it.contains("succeeded")) colors.ok else colors.muted) }
         Divider()
         Row2(
             left = { T("Still not working?", 13, color = colors.muted) },
