@@ -60,7 +60,7 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
         jobs += scope.launch {
             while (isActive) {
                 runCatching { presence.value = api.presence() }
-                delay(3_000)
+                delay(1_000)
             }
         }
         scope.launch { runCatching { fixes.value = api.fixes() } }

@@ -170,6 +170,7 @@ fun main(args: Array<String>) {
 
         // Focus reminders: decided here on the PC, shown as a Windows notification, never stored or sent.
         val trayState = rememberTrayState()
+        fun phoneReminder() = trayState.sendNotification(Notification("Phone break?", "You've been looking away from the screen for a bit. Back to it when you're ready.", Notification.Type.Info))
         LaunchedEffect(model, cfg.focusReminders) {
             val m = model ?: return@LaunchedEffect
             if (!cfg.focusReminders) return@LaunchedEffect
@@ -181,7 +182,7 @@ fun main(args: Array<String>) {
                 val down = m.presence.value?.lookingDownSeconds ?: 0.0
                 if (down >= FocusRules.PHONE_SECONDS && now - lastPhone > FocusRules.PHONE_COOLDOWN_MS) {
                     lastPhone = now
-                    trayState.sendNotification(Notification("Phone break?", "You've been looking away from the screen for a bit. Back to it when you're ready.", Notification.Type.Info))
+                    phoneReminder()
                 }
                 val idle = m.worktime.value?.state == "idle"
                 idleSince = if (idle) idleSince ?: now else null
@@ -190,7 +191,7 @@ fun main(args: Array<String>) {
                     lastPause = now
                     trayState.sendNotification(Notification("Still working?", "No activity for a while, so your active time is paused. It starts again as soon as you are back.", Notification.Type.Info))
                 }
-                kotlinx.coroutines.delay(5_000)
+                kotlinx.coroutines.delay(1_000)
             }
         }
 
@@ -215,6 +216,7 @@ fun main(args: Array<String>) {
                         Item("Simulate outage", onClick = { model?.demoOutage(true) })
                         Item("End outage", onClick = { model?.demoOutage(false) })
                         Item("Add a demo morning", onClick = { model?.demoMorning() })
+                        Item("Test phone reminder", onClick = { phoneReminder() })
                     }
                 }
                 Separator()

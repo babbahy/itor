@@ -20,7 +20,7 @@
 
 ## Focus reminders (opt-in)
 - Off by default. Turned on in Settings > Focus reminders.
-- "Looking at your phone" comes from the webcam check above (head tilted down, or face turned away, for about 20 seconds). "Long pause" comes from no mouse/keyboard activity.
+- "Looking at your phone" comes from the webcam check above (head tilted down, or face turned away, for about 5 seconds). "Long pause" comes from no mouse/keyboard activity.
 - The decision is made on this PC and shown as a Windows notification. It is never saved, never sent, and never changes the time clock. Your manager never sees it.
 
 ## Storage
