@@ -112,8 +112,7 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
                     "ollama" -> "local-ai · ${diagnosis.model ?: "qwen"}"
                     else -> "simple rules (ai not available)"
                 }, done = true)
-                val slowPc = diagnosis.recommendedActionId == "stop_demo_workload"
-                val count = (if (slowPc && !offline) 0 else fixes.value.count { it.supported }) + if (diagnosis.recommendedActionId != null) 1 else 0
+                val count = (if (networkProblem(session)) fixes.value.count { it.supported } else 0) + if (diagnosis.recommendedActionId != null) 1 else 0
                 steps += Step("propose", "$count safe fix${if (count == 1) "" else "es"} · nothing runs without approval", done = true)
                 show()
                 delay(900) // let the last line land before the answer replaces the list
@@ -122,6 +121,14 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
                 fix.value = FixState.Failed(error.message ?: "The check failed.")
             }
         }
+    }
+
+    /** True when the Wi-Fi / DNS fixes make sense: offline now, the check found a connection problem, or it found nothing at all. */
+    fun networkProblem(session: Preflight): Boolean {
+        val net = status.value?.connectivity
+        val offline = net != null && (net.offlineRescue || net.simulatedCloudOutage ||
+            net.internet.state in setOf("disconnected", "unreachable") || net.networkInterface.state == "disconnected")
+        return offline || session.findings.isEmpty() || session.findings.any { it.category == "network" }
     }
 
     private fun pct(value: Double?) = value?.let { "${Math.round(it)}%" } ?: "--"

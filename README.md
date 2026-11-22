@@ -19,9 +19,9 @@ Build the installer on Windows with JDK 17, WiX 3, and the `.venv` from `./scrip
 ./scripts/build-desktop.ps1
 ```
 
-Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.15.msi`.
+Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.16.msi`.
 
-Install the chosen MSI per user with `msiexec /i itor-1.0.15.msi /qn` from the folder containing it. Each employee can set a name and an optional Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, and settings live in `%APPDATA%\itor\config.json`.
+Install the chosen MSI per user with `msiexec /i itor-1.0.16.msi /qn` from the folder containing it. Each employee can set a name and an optional Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, and settings live in `%APPDATA%\itor\config.json`.
 
 **MSI built from this checkout with `build-desktop.ps1`.** Open itor while online to start automatic offline AI setup. On a fresh Windows x64 PC it downloads a verified standalone Ollama runtime and Qwen 3.5 2B, about 4.3 GB combined. Allow about 6 GB of free disk space. Basic checks use simple rules during setup, and you can pause, resume, or retry in the app. Once it says **Offline AI ready**, Qwen can answer without internet access or an API key.
 
