@@ -1,27 +1,26 @@
-# Five-minute demo
+# Five-minute demo (live)
 
 ## Before you go on stage
-1. Install `itor-1.0.1.msi` (or `cd apps/desktop; ./gradlew run -Pdemo` for the demo menu in Settings). For the manager view, also run `./scripts/dev.ps1` and open the Team page of the web console.
-2. Start Ollama with `qwen3.5:4b` (see README). Ask one question once so the model is warm.
-3. Set `GEMINI_API_KEY` in `.env` (free key from aistudio.google.com/apikey) to show the online AI.
-4. **Demo controls** → **Reset demo session**, then **Add a demo morning** (so the numbers are not empty).
+1. itor 1.0.2 installed and open (Start menu → itor). **Settings → Show manager view (demo)** ticked.
+2. Ollama running with `qwen3.5:4b`. Do **Fix my problem** once before going on stage: the first local-AI answer is the slowest (it loads the model).
+3. Close heavy apps: the local AI runs on the processor.
+4. Know where to turn Wi-Fi off and on (taskbar network icon, or airplane mode).
 
 ## Script
 
 | Time | On screen | What to say |
 | --- | --- | --- |
-| 0:00–0:40 | **My day**: active, lost to tools, idle, hours to pay. | Every company pays hours. itor counts real working time, and also the time **tools** made you lose. That's why people open it every day, even when nothing is broken. |
-| 0:40–1:10 | Point to **What your manager sees**. | The manager sees exactly these numbers, nothing more. No keystrokes, no screenshots, no websites. And it stays inside the company, never at Nexthink. |
-| 1:10–1:40 | Click **I'm blocked**, then stop it. | When a tool blocks me, I say so in one click. It counts as lost time because of IT, not as idle. |
-| 1:40–2:30 | **Demo controls** → **Simulate cloud unavailability**. Close. Show **You're offline. itor keeps helping.** → **Ask the local helper**. | The network is down: remote IT is blind. itor's local AI runs on this laptop and still guides me. It writes an outage log. |
-| 2:30–3:10 | Click **Fix it** on "Clear the DNS cache". Show the exact command, **Approve and run**. | The AI can only propose fixes from a safe list. Nothing runs until I approve. Then itor measures again. |
-| 3:10–3:40 | **Demo controls** → **Restore cloud adapter**. | Connection is back. The outage log and my day are sent to the company automatically. |
-| 3:40–4:30 | Open **Team**. | The manager sees the ranking for exact pay, and the time the team lost to tools: this is what IT should fix first. |
-| 4:30–5:00 | Back to **My day**. Optional: Demo controls → Start safe CPU workload → **Fix this for me**. | One tool: count your time, and when a tool steals it, get it back, even offline. |
+| 0:00–0:40 | **Home**: calm white pixel cloud, "Everything looks fine". | Every company pays hours, and every employee loses time to tools. itor sits on the PC, quiet when all is fine. |
+| 0:40–1:20 | **My day**: active / lost / idle / to pay, "What your manager sees". | It counts real working time, and the time **tools** made you lose. The manager sees exactly these numbers, nothing more: no keystrokes, no screenshots, no websites. |
+| 1:20–1:50 | **Turn Wi-Fi off.** Back to **Home**: the cloud scatters and turns amber, "You are offline". | The network is down: remote IT is blind. itor isn't. |
+| 1:50–3:00 | **Fix my problem** → "websites do not load" → **Check and fix**. The steps tick live: snapshot, network, explain (local-ai), propose. | No internet, so the AI runs on this laptop. It explains in plain words and only proposes fixes from a safe list. Nothing runs without my approval. |
+| 3:00–3:30 | **Ask IT** → "websites do not load since this morning" → **Send to IT**: "Saved. It will be sent when you are back online." | IT gets my words plus what itor measured and tried, even if I'm offline. |
+| 3:30–4:00 | **Turn Wi-Fi on.** Home goes back to calm white. | Connection back: the ticket and the outage log leave by themselves. |
+| 4:00–4:40 | **Team** tab: the ranking bars grow, time lost to tools, the ticket is there. | The manager sees exact hours, and what tools cost the team. This is what IT should fix first. |
+| 4:40–5:00 | Back to **Home**. | One app: count your time, and when a tool steals it, get it back, even offline. |
 
 ## If something goes wrong
-- **Local AI missing or slow:** itor answers with simple rules (labeled). Keep going.
-- **No Gemini key / quota reached / no internet:** answers come from the local AI. That is the point of the demo.
-- **Wi-Fi fix fails:** itor is not running as administrator. Use the DNS fix instead.
-- **Team page empty for you:** click **Send my day now**.
-- **Agent disconnected:** check the launcher output and reopen the printed address.
+- **Local AI slow:** the step list shows the seconds ticking; keep talking. If it fails, itor answers with simple rules (labeled `source: rules`).
+- **Wi-Fi off but Home still "fine":** wait ~5 s (itor checks every few seconds), or use Settings → Demo → Simulate outage (needs `--demo`).
+- **Ticket not in Team:** wait a few seconds after Wi-Fi is back, then reopen the Team tab.
+- **Window gone:** it's in the tray (bottom right, black square with an "i").
