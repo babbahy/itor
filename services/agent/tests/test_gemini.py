@@ -80,3 +80,18 @@ def test_skips_gemini_when_offline():
         finally:
             await manager.close()
     asyncio.run(verify())
+
+
+def test_overloaded_model_falls_through_to_the_next_one():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        if "gemini-3.5-flash-lite" in request.url.path:
+            return httpx.Response(503, json={"error": {"message": "high demand"}})
+        return httpx.Response(200, json={"candidates": [
+            {"content": {"parts": [{"text": json.dumps(ANSWER)}]}, "finishReason": "STOP"}]})
+
+    result = asyncio.run(provider(httpx.MockTransport(handler)).explain([FINDING]))
+    assert result.provider == "gemini" and result.model == "gemini-3.1-flash-lite"
+    assert len(calls) == 2

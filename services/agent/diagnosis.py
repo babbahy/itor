@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from collections.abc import Mapping, Sequence
 import json
@@ -336,6 +337,9 @@ GEMINI_SCHEMA = {
     "additionalProperties": False,
 }
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_FALLBACK_MODELS = ("gemini-3.1-flash-lite", "gemini-2.5-flash-lite")
+RETRY_NEXT_MODEL = {404, 429, 500, 503}
+log = logging.getLogger("itor.gemini")
 
 
 class GeminiDiagnosisProvider:
@@ -349,6 +353,11 @@ class GeminiDiagnosisProvider:
         self.timeout = timeout
         self._api_key = api_key
         self.transport = transport
+        self.last_model: str | None = None
+
+    def models(self) -> list[str]:
+        """The configured model first, then stable free-tier fallbacks."""
+        return list(dict.fromkeys([self.model, *GEMINI_FALLBACK_MODELS]))
 
     @property
     def is_loading(self) -> bool:
@@ -378,10 +387,17 @@ class GeminiDiagnosisProvider:
                 "responseJsonSchema": GEMINI_SCHEMA,
             },
         }
+        # Free-tier models are sometimes overloaded (503) or rate-limited (429): try the next model in the list.
         async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport, trust_env=False) as client:
-            response = await client.post(GEMINI_URL.format(model=self.model), json=body,
-                                         headers={"x-goog-api-key": self.api_key})
+            for model in self.models():
+                response = await client.post(GEMINI_URL.format(model=model), json=body,
+                                             headers={"x-goog-api-key": self.api_key})
+                if response.status_code in RETRY_NEXT_MODEL:
+                    log.warning("Gemini %s answered HTTP %s, trying the next model", model, response.status_code)
+                    continue
+                break
         response.raise_for_status()
+        self.last_model = model
         payload = response.json()
         if payload.get("promptFeedback", {}).get("blockReason"):
             raise ValueError("Gemini blocked the request")
@@ -405,7 +421,8 @@ class GeminiDiagnosisProvider:
             evidence["network_checks"] = network_observations(network)
         try:
             answer = await self.ask_gemini(evidence)
-        except Exception:  # Any problem (no internet, bad key, quota, blocked, bad JSON): use the local model instead.
+        except Exception as error:  # Any problem (no internet, bad key, quota, blocked, bad JSON): use the local model instead.
+            log.warning("Gemini not used (%s: %s), using the local model", type(error).__name__, str(error)[:160])
             return await self.local.explain(findings, question=question, network=network)
         if answer.recommended_action_id not in (None, baseline.recommended_action_id):
             return await self.local.explain(findings, question=question, network=network)
@@ -414,7 +431,7 @@ class GeminiDiagnosisProvider:
             return await self.local.explain(findings, question=question, network=network)
         return DiagnosisResult(
             **answer.model_dump(exclude={"recommended_action_id"}), status="complete",
-            provider="gemini", model=self.model, observed_facts=baseline.observed_facts,
+            provider="gemini", model=self.last_model or self.model, observed_facts=baseline.observed_facts,
             safe_steps=baseline.safe_steps,
             recommended_action_id=baseline.recommended_action_id,
             action_explanation=baseline.action_explanation, verification_advice=baseline.verification_advice,
