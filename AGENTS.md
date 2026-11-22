@@ -18,3 +18,16 @@ Read this before you work on this repo.
 - Read [PLAN.md](PLAN.md) first: it is the shared plan.
 - Pull before you start, and commit small changes often, so the two of us don't overwrite each other.
 - Run the tests before you push (`make test`).
+
+## Project layout
+- `services/agent/` — Python helper (measures the PC, time clock, AI, fixes, IT tickets). Tested with pytest.
+- `apps/desktop/` — **the employee app, Kotlin (Compose Desktop)**. Installed with an MSI on every PC. Talks to the helper on 127.0.0.1.
+- `apps/web/` — manager / IT console (Team ranking, tickets). Employees don't use it.
+
+## Design rules (no "AI slop" UI)
+- Look: crisp Swiss / enterprise utility software (Linear, Stripe, Raycast, Vercel). Not a generic AI SaaS landing page.
+- Colors: monochrome base (`#FAFAFA` / `#0A0A0A`) with `1px solid` borders (`#E5E7EB` / `#262626`). At most ONE functional accent: emerald for OK/active, amber for offline/warning. Accents only for status.
+- Banned: purple/blue/pink gradients, glow, glassmorphism, floating blobs, gratuitous animations.
+- Type: Inter (or Geist) for text; JetBrains Mono with tabular numbers for every time, duration, log, status code and command.
+- Layout: compact, 12–16 px padding, 4–6 px corner radius, flat cards, no shadows.
+- Copy & icons: Lucide line icons at 1.5 px stroke. No emojis, no marketing words, no "AI-powered" badges.
