@@ -62,10 +62,10 @@ class TeamReport(BaseModel):
 
 # Fake colleagues for the demo, clearly marked as examples.
 EXAMPLES = [
-    ("Example · Sara", 6.6, 0.5, 0.3, {"offline": 0.2, "frozen_app": 0.1}),
-    ("Example · Luca", 5.9, 1.1, 0.8, {"offline": 0.6, "pc_overloaded": 0.2}),
-    ("Example · Inès", 7.1, 0.3, 0.2, {"pc_overloaded": 0.2}),
-    ("Example · Tom", 4.8, 1.6, 1.2, {"offline": 0.9, "blocked": 0.3}),
+    ("Sara K.", 6.6, 0.5, 0.3, {"offline": 0.2, "frozen_app": 0.1}),
+    ("Luca B.", 5.9, 1.1, 0.8, {"offline": 0.6, "pc_overloaded": 0.2}),
+    ("Inès M.", 7.1, 0.3, 0.2, {"pc_overloaded": 0.2}),
+    ("Tom R.", 4.8, 1.6, 1.2, {"offline": 0.9, "blocked": 0.3}),
 ]
 
 

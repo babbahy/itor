@@ -1,7 +1,7 @@
 # Five-minute demo (live)
 
 ## Before you go on stage
-1. itor 1.0.4 installed and open (Start menu → itor). **Settings → Show manager view (demo)** ticked.
+1. itor 1.0.5 installed and open (Start menu → itor). **Settings → Show manager view (demo)** ticked.
 2. Ollama running with `qwen3.5:4b`. Do **Fix my problem** once before going on stage: the first local-AI answer is the slowest (it loads the model).
 3. Close heavy apps: the local AI runs on the processor.
 4. Know where to turn Wi-Fi off and on (taskbar network icon, or airplane mode).

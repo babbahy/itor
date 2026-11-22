@@ -1,5 +1,8 @@
 package itor.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,6 +77,9 @@ val Dark = Palette(
 val SunRed = Color(0xFFD93829)
 
 val LocalPalette = staticCompositionLocalOf { Light }
+
+/** True for the dark (night) theme. Stable during the colour transition, unlike the colours. */
+val LocalNight = staticCompositionLocalOf { true }
 val colors: Palette @Composable get() = LocalPalette.current
 
 val Inter = FontFamily(
@@ -91,12 +97,20 @@ val SmallCorner = RoundedCornerShape(4.dp)
 
 @Composable
 fun ItorTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val palette = if (dark) Dark else Light
-    val scheme = (if (palette == Dark) darkColorScheme() else lightColorScheme()).copy(
+    val target = if (dark) Dark else Light
+    // Theme switch: every surface, border and text colour shifts together in 200 ms, ease-out.
+    @Composable
+    fun anim(color: Color) = animateColorAsState(color, tween(200, easing = LinearOutSlowInEasing)).value
+    val palette = Palette(
+        bg = anim(target.bg), surface = anim(target.surface), border = anim(target.border), text = anim(target.text),
+        muted = anim(target.muted), ok = anim(target.ok), warn = anim(target.warn), inverse = anim(target.inverse),
+        onInverse = anim(target.onInverse),
+    )
+    val scheme = (if (dark) darkColorScheme() else lightColorScheme()).copy(
         background = palette.bg, surface = palette.surface, onSurface = palette.text, onBackground = palette.text,
         primary = palette.inverse, onPrimary = palette.onInverse, outline = palette.border,
     )
-    CompositionLocalProvider(LocalPalette provides palette, LocalContentColor provides palette.text) {
+    CompositionLocalProvider(LocalPalette provides palette, LocalNight provides dark, LocalContentColor provides palette.text) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }

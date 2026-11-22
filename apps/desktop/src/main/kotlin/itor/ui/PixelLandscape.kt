@@ -1,6 +1,17 @@
 package itor.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -72,7 +83,7 @@ private fun buildScene(night: Boolean): Scene {
 
 @Composable
 fun PixelLandscape(mood: Mood, modifier: Modifier = Modifier) {
-    val night = colors.bg == Dark.bg
+    val night = LocalNight.current
     val scene = remember(night) { buildScene(night) }
     val stars = remember { Random(5).let { r -> List(46) { r.nextInt(COLS) to r.nextInt(2, HORIZON - 12) } } }
     val currentMood by rememberUpdatedState(mood)
@@ -85,16 +96,26 @@ fun PixelLandscape(mood: Mood, modifier: Modifier = Modifier) {
         }
     }
 
-    val ink = if (night) Color(0xFFF2F2F2) else Color(0xFF111111)
-    val bg = if (night) Color(0xFF0E1013) else Color(0xFFF7F7F7)
+    val ink = animateColorAsState(if (night) Color(0xFFF2F2F2) else Color(0xFF111111), tween(200, easing = LinearOutSlowInEasing)).value
+    val bg = animateColorAsState(if (night) Color(0xFF0E1013) else Color(0xFFF7F7F7), tween(200, easing = LinearOutSlowInEasing)).value
+    // Theme switch: the sun (day) or moon (night) rises from the horizon. Not on first display.
+    val rise = remember { Animatable(1f) }
+    var firstNight by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(night) {
+        if (firstNight == null) { firstNight = night; return@LaunchedEffect }
+        rise.snapTo(0f)
+        rise.animateTo(1f, tween(900, easing = LinearOutSlowInEasing))
+    }
     val trouble = mood == Mood.WARN || mood == Mood.OFFLINE
     val tint = if (trouble) colors.warn else ink
     // Sun (day, right) or moon (night, left): fixed anchors.
     val orbX = if (night) 36 else 118
-    val orbY = if (night) 9 else 10
+    val orbTop = if (night) 9 else 10
+    val orbY = (HORIZON + 6 - (HORIZON + 6 - orbTop) * rise.value).toInt()
     val orbR = if (night) 4.5f else 5f
 
-    Box(modifier.fillMaxWidth().height(150.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Box(Modifier.fillMaxWidth().height(150.dp).clip(Corner)) {
         Canvas(Modifier.fillMaxSize()) {
             drawRect(bg)
             val px = size.width / COLS
@@ -119,6 +140,7 @@ fun PixelLandscape(mood: Mood, modifier: Modifier = Modifier) {
             val pulse = 0.5f + 0.5f * sin(f * 0.15f)
             for (y in 0 until HORIZON) for (x in 0 until COLS) {
                 val d = sqrt(((x - orbX) * (x - orbX) * 0.85f + (y - orbY) * (y - orbY)).toFloat())
+                if (y >= HORIZON) continue // below the horizon while rising: hidden behind the water line
                 when {
                     d <= orbR -> put(x, y, if (night) ink else SunRed)
                     night && d <= orbR + 4 && dither(x, y, (0.55f - (d - orbR) * 0.12f) * (0.75f + 0.25f * pulse)) -> put(x, y, ink.copy(alpha = 0.8f))
@@ -151,6 +173,7 @@ fun PixelLandscape(mood: Mood, modifier: Modifier = Modifier) {
                     else if (night && speck(x + f / 3, y, 0.012f)) put(x, y, ink.copy(alpha = 0.35f)) // sparse ripples
                 }
                 // Orb reflection: short dashes under the sun/moon that shimmer.
+                if (rise.value < 0.6f) continue // no reflection until the orb is up
                 val half = (6 - row / 3).coerceAtLeast(1)
                 val wobble = (sin(f * 0.6f + row) * 2).toInt()
                 for (dx in -half..half) {
@@ -159,9 +182,12 @@ fun PixelLandscape(mood: Mood, modifier: Modifier = Modifier) {
                 }
             }
         }
-        M(
-            "state: ${mood.name.lowercase()}", 11, colors.muted,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp),
-        )
+    }
+    // Status caption under the canvas (no text over the water).
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val dotColor = when (mood) { Mood.CALM -> colors.ok; Mood.WORKING -> colors.text; else -> colors.warn }
+        Box(Modifier.size(6.dp).background(dotColor, SmallCorner))
+        M("state: ${mood.name.lowercase()}", 11, colors.muted)
+    }
     }
 }

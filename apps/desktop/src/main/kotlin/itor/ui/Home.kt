@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -68,15 +72,7 @@ fun Home(model: Model, onAskIT: (String?) -> Unit, onMyDay: () -> Unit, noticeSe
                 }
             }
         }
-        Row2(
-            left = {
-                Label("today")
-                Spacer(Modifier.width(8.dp))
-                M(duration(day?.paidSecondsTotal), 12)
-                M(" worked", 12, colors.muted)
-            },
-            right = { LinkText("Details", onMyDay); Ico("chevron-right", 14, colors.muted) },
-        )
+        DailyPulse(day, status, onMyDay)
     }
     ApprovalDialog(model)
 }
@@ -227,5 +223,37 @@ private fun StepLine(step: Step, running: Boolean, startedAt: Long) {
         M(step.label.padEnd(9), 12, colors.text)
         M(text.take(shown), 12, color, modifier = Modifier.weight(1f))
         if (running) M("${(now - startedAt) / 1000}s", 12, colors.muted)
+    }
+}
+
+/** Daily value + offline protection at a glance. */
+@Composable
+private fun DailyPulse(day: itor.WorkDay?, status: itor.Status?, onMyDay: () -> Unit) {
+    val active = day?.activeSeconds ?: 0.0
+    val lost = day?.lostSeconds ?: 0.0
+    val total = (active + lost).takeIf { it > 0 } ?: 1.0
+    val ai = status?.connectivity?.ollama?.state
+    val (aiText, aiColor) = when (ai) {
+        "connected" -> "Local AI: Ready · Offline-safe" to colors.ok
+        null -> "Local AI: checking" to colors.muted
+        else -> "Local AI: not installed · simple rules offline" to colors.warn
+    }
+    Card {
+        Row2(left = { T("Daily pulse", 14, FontWeight.SemiBold) }, right = { LinkText("Details", onMyDay); Ico("chevron-right", 14, colors.muted) })
+        Row(Modifier.fillMaxWidth().height(6.dp).background(colors.border, SmallCorner)) {
+            if (active > 0) Box(Modifier.weight((active / total).toFloat()).fillMaxHeight().background(colors.ok, SmallCorner))
+            if (lost > 0) Box(Modifier.weight((lost / total).toFloat()).fillMaxHeight().background(colors.warn, SmallCorner))
+        }
+        Row2(
+            left = { M(duration(active), 12, weight = FontWeight.Medium); M(" active", 12, colors.muted) },
+            right = { M(duration(lost), 12, colors.warn, FontWeight.Medium); M(" lost to slow tools", 12, colors.muted) },
+        )
+        Row(
+            Modifier.border(1.dp, colors.border, SmallCorner).padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(Modifier.size(6.dp).background(aiColor, SmallCorner))
+            M(aiText, 11, colors.text)
+        }
     }
 }

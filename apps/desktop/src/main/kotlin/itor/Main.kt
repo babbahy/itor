@@ -1,5 +1,13 @@
 package itor
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +15,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -156,19 +172,31 @@ fun main(args: Array<String>) {
                                 m == null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Spinner(); T("Starting itor", 13, color = colors.muted)
                                 }
-                                screen == Screen.HOME -> Home(
-                                    m,
-                                    onAskIT = { diagnosis -> askIt = diagnosis; m.resetTicket(); askItOpen = true },
-                                    onMyDay = { screen = Screen.DAY },
-                                    noticeSeen = cfg.noticeSeen,
-                                    onNoticeSeen = { cfg = cfg.copy(noticeSeen = true); ConfigStore.save(cfg) },
-                                )
-                                screen == Screen.DAY -> MyDay(m)
-                                screen == Screen.TEAM -> Team(m)
-                                else -> Settings(cfg, demo, m) { updated ->
-                                    cfg = updated; config = updated
-                                    ConfigStore.save(updated); applyAutostart(updated.autostart)
-                                    startHelper(updated); screen = Screen.HOME
+                                // Tab switch: quick fade + 6 dp rise, 180 ms ease-out.
+                                else -> AnimatedContent(
+                                    screen,
+                                    transitionSpec = {
+                                        (fadeIn(tween(180, easing = LinearOutSlowInEasing)) +
+                                            slideInVertically(tween(180, easing = LinearOutSlowInEasing)) { 12 }) togetherWith
+                                            fadeOut(tween(120))
+                                    },
+                                ) { tab ->
+                                    when (tab) {
+                                        Screen.HOME -> Home(
+                                            m,
+                                            onAskIT = { diagnosis -> askIt = diagnosis; m.resetTicket(); askItOpen = true },
+                                            onMyDay = { screen = Screen.DAY },
+                                            noticeSeen = cfg.noticeSeen,
+                                            onNoticeSeen = { cfg = cfg.copy(noticeSeen = true); ConfigStore.save(cfg) },
+                                        )
+                                        Screen.DAY -> MyDay(m)
+                                        Screen.TEAM -> Team(m)
+                                        Screen.SETTINGS -> Settings(cfg, demo, m) { updated ->
+                                            cfg = updated; config = updated
+                                            ConfigStore.save(updated); applyAutostart(updated.autostart)
+                                            startHelper(updated); screen = Screen.HOME
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -183,23 +211,38 @@ fun main(args: Array<String>) {
 
 @Composable
 private fun TopBar(screen: Screen, showTeam: Boolean, dark: Boolean, onTheme: () -> Unit, onSelect: (Screen) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(colors.surface).border(width = 0.dp, color = colors.border).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        M("itor", 14, weight = FontWeight.Medium)
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.End)) {
-            listOfNotNull(Screen.HOME to "Home", Screen.DAY to "My day", if (showTeam) Screen.TEAM to "Team" else null,
-                Screen.SETTINGS to "Settings").forEach { (target, label) ->
-                T(label, 13, if (target == screen) FontWeight.SemiBold else FontWeight.Normal,
-                    if (target == screen) colors.text else colors.muted, Modifier.clickable { onSelect(target) })
-            }
-            // Light / dark toggle: shows the mode you switch to.
-            Box(Modifier.clickable(onClick = onTheme)) {
-                itor.ui.Ico(if (dark) "sun" else "moon", 15, colors.muted)
+    val tabs = remember { mutableStateMapOf<Screen, Pair<Float, Float>>() } // x and width in px, in window coordinates
+    Column(Modifier.fillMaxWidth().background(colors.surface)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            M("itor", 14, weight = FontWeight.Medium)
+            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                listOfNotNull(Screen.HOME to "Home", Screen.DAY to "My day", if (showTeam) Screen.TEAM to "Team" else null,
+                    Screen.SETTINGS to "Settings").forEach { (target, label) ->
+                    T(label, 13, if (target == screen) FontWeight.SemiBold else FontWeight.Normal,
+                        if (target == screen) colors.text else colors.muted,
+                        Modifier.clickable { onSelect(target) }.onGloballyPositioned {
+                            tabs[target] = it.positionInRoot().x to it.size.width.toFloat()
+                        })
+                }
+                // Light / dark toggle: shows the mode you switch to.
+                Box(Modifier.clickable(onClick = onTheme)) {
+                    itor.ui.Ico(if (dark) "sun" else "moon", 15, colors.muted)
+                }
             }
         }
+        // Bottom border with the active-tab indicator sliding under the label (180 ms ease-out).
+        val (x, w) = tabs[screen] ?: (0f to 0f)
+        val ix by animateFloatAsState(x, tween(180, easing = LinearOutSlowInEasing))
+        val iw by animateFloatAsState(w, tween(180, easing = LinearOutSlowInEasing))
+        val density = LocalDensity.current
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.border)) {
+            if (w > 0f) Box(
+                Modifier.offset { IntOffset(ix.toInt(), 0) }.width(with(density) { iw.toDp() }).height(1.dp).background(colors.text),
+            )
+        }
     }
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(0.dp).background(colors.border).then(Modifier.padding(top = 1.dp)))
 }

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.runtime.Composable
@@ -158,12 +160,22 @@ fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Un
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Card {
             T("Settings", 15, FontWeight.SemiBold)
+            val engine = model.status.collectAsState().value
+            val ready = engine?.connectivity?.ollama?.state == "connected"
+            Row(
+                Modifier.fillMaxWidth().border(1.dp, colors.border, SmallCorner).padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(Modifier.size(6.dp).background(if (ready) colors.ok else colors.warn, SmallCorner))
+                T("Offline engine", 13, FontWeight.Medium)
+                M(if (ready) "Local open-weight model · ${engine?.model ?: "qwen"} (Ready)" else "Local model not installed", 11, colors.muted)
+            }
             Label("your name (shown to your manager)")
             Field(name, { name = it }, "default: Windows user name")
-            Label("gemini api key (online ai, free tier)")
+            Label("cloud ai fallback (optional)")
             Field(gemini, { gemini = it }, "aistudio.google.com/apikey", secret = true)
             Label("company server")
-            Field(url, { url = it }, "empty: this PC (demo)")
+            Field(url, { url = it }, "empty: this PC acts as the server")
             Field(key, { key = it }, "company key", secret = true)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(autostart, { autostart = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
@@ -171,7 +183,7 @@ fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Un
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(showTeam, { showTeam = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
-                T("Show manager view (demo)", 13)
+                T("Show manager view", 13)
             }
             Btn("Save and restart helper", {
                 onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart, showTeam = showTeam))

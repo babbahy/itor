@@ -35,7 +35,7 @@ fun Team(model: Model) {
     val t = team
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Card {
-            Row2(left = { T("Team · today", 15, FontWeight.SemiBold) }, right = { M("ranked by active time", 11, colors.muted) })
+            Row2(left = { T("Team · today", 15, FontWeight.SemiBold) }, right = { M("Activity & friction overview", 11, colors.muted) })
             Row(Modifier.fillMaxWidth()) {
                 M("#", 11, colors.muted, modifier = Modifier.width(20.dp))
                 M("name", 11, colors.muted, modifier = Modifier.weight(1f))
@@ -81,8 +81,7 @@ private fun RankRow(row: TeamRow, index: Int, maxActive: Double, isMe: Boolean) 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             M("${row.rank}", 12, colors.muted, modifier = Modifier.width(20.dp))
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                T(row.employee, 13, if (isMe) FontWeight.SemiBold else FontWeight.Normal, if (row.example) colors.muted else colors.text)
-                if (isMe) { Spacer(Modifier.width(6.dp)); M("you", 11, colors.ok) }
+                T(if (isMe) "${row.employee} (you)" else row.employee, 13, if (isMe) FontWeight.SemiBold else FontWeight.Normal)
             }
             M(duration(row.activeSeconds), 12, modifier = Modifier.width(52.dp))
             M(duration(row.lostSeconds), 12, if (row.lostSeconds > 1800) colors.warn else colors.text, modifier = Modifier.width(44.dp))
