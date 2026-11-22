@@ -16,20 +16,33 @@ from pydantic import BaseModel
 from .models import new_id, utc_now
 
 FixId = Literal["flush_dns", "restart_wifi"]
+OFFLINE_STATES = {"unreachable", "disconnected", "cloud down (demo)"}
 
-RESTART_WIFI = (
-    "Get-NetAdapter -Physical | Where-Object { $_.Status -ne 'Disabled' -and "
-    "($_.InterfaceDescription -match 'Wireless|Wi-?Fi|WLAN' -or $_.Name -match 'Wi-?Fi|WLAN') } | "
-    "Restart-NetAdapter -Confirm:$false"
-)
+# Turns the Wi-Fi *radio* off then on through Windows (Windows.Devices.Radios), like the Wi-Fi button in the
+# taskbar. Works when Wi-Fi was switched off or airplane mode is on, and needs no admin rights.
+WIFI_RADIO_CYCLE = r"""
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+  $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and
+  $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
+function Await($op, $type) { $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op)); $t.Wait(-1) | Out-Null; $t.Result }
+[Windows.Devices.Radios.Radio, Windows.System.Devices, ContentType = WindowsRuntime] | Out-Null
+[Windows.Devices.Radios.RadioAccessStatus, Windows.System.Devices, ContentType = WindowsRuntime] | Out-Null
+Await ([Windows.Devices.Radios.Radio]::RequestAccessAsync()) ([Windows.Devices.Radios.RadioAccessStatus]) | Out-Null
+$radios = Await ([Windows.Devices.Radios.Radio]::GetRadiosAsync()) ([System.Collections.Generic.IReadOnlyList[Windows.Devices.Radios.Radio]])
+$wifi = $radios | Where-Object { $_.Kind -eq 'WiFi' } | Select-Object -First 1
+if (-not $wifi) { Write-Output 'No Wi-Fi radio found.'; exit 2 }
+Await ($wifi.SetStateAsync('Off')) ([Windows.Devices.Radios.RadioAccessStatus]) | Out-Null
+Start-Sleep -Seconds 2
+$status = Await ($wifi.SetStateAsync('On')) ([Windows.Devices.Radios.RadioAccessStatus])
+Write-Output "Wi-Fi radio: $($wifi.State) ($status)"
+if ($status -ne 'Allowed') { exit 3 }
+"""
 
-# itor runs as the normal user: only this fix asks Windows for admin (the Windows prompt appears).
-# The inner command is passed base64-encoded so no quoting can change it. Declining the prompt = failure.
-ELEVATED_RESTART_WIFI = (
-    "$p = Start-Process powershell -Verb RunAs -Wait -PassThru -WindowStyle Hidden "
-    f"-ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','{base64.b64encode(RESTART_WIFI.encode('utf-16-le')).decode()}'; "
-    "exit $p.ExitCode"
-)
+
+def encoded(script: str) -> str:
+    """PowerShell -EncodedCommand value: no quoting can change the script."""
+    return base64.b64encode(script.encode("utf-16-le")).decode()
 
 
 class NetworkFix(BaseModel):
@@ -71,10 +84,10 @@ FIXES: dict[str, FixSpec] = {
     ),
     "restart_wifi": FixSpec(
         "Turn Wi-Fi off and on",
-        "Restarts the Wi-Fi card, like switching it off and on. Windows asks for admin rights. "
-        "The connection drops for about 10 seconds.",
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", ELEVATED_RESTART_WIFI],
-        f"(as admin) {RESTART_WIFI}", True,
+        "Switches the Wi-Fi radio off and back on, like the Wi-Fi button in the taskbar. "
+        "Also turns Wi-Fi back on if it was switched off. Then itor waits for the internet to come back.",
+        ["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded(WIFI_RADIO_CYCLE)],
+        "Windows.Devices.Radios: Wi-Fi radio Off, then On", False,
     ),
 }
 
@@ -147,13 +160,23 @@ class NetworkFixes:
             run = run.model_copy(update={"status": "running", "internet_before": await self.check_internet()})
             self.runs[run_id] = (run, token)
             ok, output = await asyncio.to_thread(self.runner, spec.command)
-            if ok and run.fix_id == "restart_wifi":
-                await asyncio.sleep(10)  # give Wi-Fi time to reconnect before measuring again
             after = await self.check_internet()
-            message = ("Done. " if ok else "The command failed. ") + (output or "")
-            if not ok and spec.needs_admin:
-                message += " (Windows admin rights were refused or are not available.)"
-            run = run.model_copy(update={"status": "succeeded" if ok else "failed", "internet_after": after,
+            if ok and run.fix_id == "restart_wifi":
+                # Wi-Fi needs a few seconds to reconnect: wait up to 25 s for the internet to come back.
+                for _ in range(10):
+                    if after not in OFFLINE_STATES:
+                        break
+                    await asyncio.sleep(2.5)
+                    after = await self.check_internet()
+            # Only "succeeded" when it really worked: the command ran, and for the Wi-Fi fix, internet is back.
+            fixed = ok and not (run.fix_id == "restart_wifi" and after in OFFLINE_STATES)
+            if fixed:
+                message = "Done. " + (output or "")
+            elif ok:
+                message = "The command ran, but the internet is still unreachable. Ask IT if it stays like this."
+            else:
+                message = "The command failed. " + (output or "")
+            run = run.model_copy(update={"status": "succeeded" if fixed else "failed", "internet_after": after,
                                          "message": message.strip()})
             self.runs[run_id] = (run, token)
         if self.on_done:

@@ -148,13 +148,32 @@ def test_company_server_lists_tickets(tmp_path):
     assert team.tickets[0].message == "VPN down" and team.tickets[0].sent
 
 
-def test_wifi_fix_asks_windows_for_admin():
+def test_wifi_fix_toggles_the_radio_without_admin():
     import base64
-    from services.agent.network_fixes import FIXES, RESTART_WIFI
-    command = FIXES["restart_wifi"].command[-1]
-    assert "Start-Process powershell -Verb RunAs" in command
-    encoded = command.split("'-EncodedCommand','")[1].split("'")[0]
-    assert base64.b64decode(encoded).decode("utf-16-le") == RESTART_WIFI
+    from services.agent.network_fixes import FIXES, WIFI_RADIO_CYCLE
+    spec = FIXES["restart_wifi"]
+    assert spec.needs_admin is False and spec.command[-2] == "-EncodedCommand"
+    assert base64.b64decode(spec.command[-1]).decode("utf-16-le") == WIFI_RADIO_CYCLE
+    assert "SetStateAsync('On')" in WIFI_RADIO_CYCLE
+
+
+def test_wifi_fix_is_not_a_success_while_still_offline():
+    async def verify():
+        async def offline():
+            return "unreachable"
+        tool = NetworkFixes(offline, runner=lambda command: (True, "Wi-Fi radio: On (Allowed)"), windows=True)
+        import services.agent.network_fixes as module
+        original = module.asyncio.sleep
+        async def no_wait(_):
+            return None
+        module.asyncio.sleep = no_wait
+        try:
+            plan = tool.plan("restart_wifi")
+            done = await tool.approve(plan.id, plan.approval_token)
+        finally:
+            module.asyncio.sleep = original
+        assert done.status == "failed" and "still unreachable" in done.message
+    asyncio.run(verify())
 
 
 def test_serve_port_and_demo_worker():
