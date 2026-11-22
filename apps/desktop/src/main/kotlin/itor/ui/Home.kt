@@ -155,8 +155,14 @@ private fun Answer(model: Model, state: FixState.Answer, onAskIT: (String?) -> U
             val app = model.status.collectAsState().value?.demo?.app
             FixRow(if (app != null) "Stop $app" else "Stop the app slowing your PC") { model.askStopTask(state.session) }
         }
-        fixes.filter { it.supported }.forEach { item -> FixRow(item.title) { model.askQuickFix(item) } }
-        if (fixes.none { it.supported } && d.recommendedActionId == null) M("no safe fix available on this PC", 12, colors.muted)
+        // Wi-Fi / DNS fixes only make sense for a connection problem, not when an app is slowing the PC.
+        val slowPc = d.recommendedActionId == "stop_demo_workload"
+        val net = model.status.collectAsState().value?.connectivity
+        val offline = net != null && (net.offlineRescue || net.simulatedCloudOutage ||
+            net.internet.state in setOf("disconnected", "unreachable") || net.networkInterface.state == "disconnected")
+        val networkFixes = if (slowPc && !offline) emptyList() else fixes.filter { it.supported }
+        networkFixes.forEach { item -> FixRow(item.title) { model.askQuickFix(item) } }
+        if (networkFixes.isEmpty() && d.recommendedActionId == null) M("no safe fix available on this PC", 12, colors.muted)
         result?.let { M(it, 12, if (it.contains("succeeded")) colors.ok else colors.muted) }
         Divider()
         Row2(

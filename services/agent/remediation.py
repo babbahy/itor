@@ -112,7 +112,7 @@ class LocalSafeRemediationProvider:
         if self.busy or not current.id or current.id != observed.id or not any(
             "stop_demo_workload" in item.recommended_action_ids for item in session.findings
         ):
-            raise ActionError("Run a fresh preflight while the controlled workload is active.")
+            raise ActionError("That app is no longer running, or it changed since the check. Click Fix my problem again.")
         for plan in self.plans.values():
             if plan.workload_id == current.id and plan.action.session_id == session.id:
                 return plan.action.model_copy(update={"approval_token": plan.token})

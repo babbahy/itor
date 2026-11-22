@@ -112,7 +112,8 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
                     "ollama" -> "local-ai · ${diagnosis.model ?: "qwen"}"
                     else -> "simple rules (ai not available)"
                 }, done = true)
-                val count = fixes.value.count { it.supported } + if (diagnosis.recommendedActionId != null) 1 else 0
+                val slowPc = diagnosis.recommendedActionId == "stop_demo_workload"
+                val count = (if (slowPc && !offline) 0 else fixes.value.count { it.supported }) + if (diagnosis.recommendedActionId != null) 1 else 0
                 steps += Step("propose", "$count safe fix${if (count == 1) "" else "es"} · nothing runs without approval", done = true)
                 show()
                 delay(900) // let the last line land before the answer replaces the list
@@ -148,7 +149,8 @@ class Model(private val api: Api, private val scope: CoroutineScope, private val
     }
 
     fun askStopTask(session: Preflight) = scope.launch {
-        runCatching { api.planStop(session.id) }
+        // The answer may be from an older check (another demo app was running then): measure again and retry once.
+        runCatching { runCatching { api.planStop(session.id) }.getOrElse { api.planStop(api.preflight().id) } }
             .onSuccess { approval.value = Approval.StopTask(it) }
             .onFailure { lastResult.value = it.message }
     }
