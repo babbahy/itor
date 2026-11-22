@@ -146,3 +146,20 @@ def test_company_server_lists_tickets(tmp_path):
     server.receive(Envelope(kind="ticket", ticket=Ticket(employee="alex", message="VPN down")))
     team = server.team()
     assert team.tickets[0].message == "VPN down" and team.tickets[0].sent
+
+
+def test_wifi_fix_asks_windows_for_admin():
+    import base64
+    from services.agent.network_fixes import FIXES, RESTART_WIFI
+    command = FIXES["restart_wifi"].command[-1]
+    assert "Start-Process powershell -Verb RunAs" in command
+    encoded = command.split("'-EncodedCommand','")[1].split("'")[0]
+    assert base64.b64decode(encoded).decode("utf-16-le") == RESTART_WIFI
+
+
+def test_serve_port_and_demo_worker():
+    from services.agent.serve import main, parse_port
+    assert parse_port(None) == 8765 and parse_port("8799") == 8799
+    with pytest.raises(ValueError):
+        parse_port("80")
+    main(["itor-helper", "--demo-worker", "1"])  # burns ~1 s then returns

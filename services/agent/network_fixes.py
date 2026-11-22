@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -20,6 +21,14 @@ RESTART_WIFI = (
     "Get-NetAdapter -Physical | Where-Object { $_.Status -ne 'Disabled' -and "
     "($_.InterfaceDescription -match 'Wireless|Wi-?Fi|WLAN' -or $_.Name -match 'Wi-?Fi|WLAN') } | "
     "Restart-NetAdapter -Confirm:$false"
+)
+
+# itor runs as the normal user: only this fix asks Windows for admin (the Windows prompt appears).
+# The inner command is passed base64-encoded so no quoting can change it. Declining the prompt = failure.
+ELEVATED_RESTART_WIFI = (
+    "$p = Start-Process powershell -Verb RunAs -Wait -PassThru -WindowStyle Hidden "
+    f"-ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','{base64.b64encode(RESTART_WIFI.encode('utf-16-le')).decode()}'; "
+    "exit $p.ExitCode"
 )
 
 
@@ -62,9 +71,10 @@ FIXES: dict[str, FixSpec] = {
     ),
     "restart_wifi": FixSpec(
         "Turn Wi-Fi off and on",
-        "Restarts the Wi-Fi card, like switching it off and on. The connection drops for about 10 seconds.",
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", RESTART_WIFI],
-        f"powershell -Command \"{RESTART_WIFI}\"", True,
+        "Restarts the Wi-Fi card, like switching it off and on. Windows asks for admin rights. "
+        "The connection drops for about 10 seconds.",
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", ELEVATED_RESTART_WIFI],
+        f"(as admin) {RESTART_WIFI}", True,
     ),
 }
 
@@ -142,7 +152,7 @@ class NetworkFixes:
             after = await self.check_internet()
             message = ("Done. " if ok else "The command failed. ") + (output or "")
             if not ok and spec.needs_admin:
-                message += " (This fix needs itor to run as administrator.)"
+                message += " (Windows admin rights were refused or are not available.)"
             run = run.model_copy(update={"status": "succeeded" if ok else "failed", "internet_after": after,
                                          "message": message.strip()})
             self.runs[run_id] = (run, token)
