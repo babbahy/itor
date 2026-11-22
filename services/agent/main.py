@@ -114,6 +114,7 @@ class Agent:
         self.incidents = IncidentLog(self.store, settings.employee_name, on_closed=self.company_sender.queue_incident)
         self.fixes = NetworkFixes(check_internet=self.internet_state, on_done=self.fix_done)
         self.demo_lock = asyncio.Lock()
+        self.ai_quiet_until = 0.0
         self.connectivity_report: ConnectivityReport | None = None
         self.history_generation = 0
 
@@ -129,7 +130,8 @@ class Agent:
         internet_unavailable = internet is not None and internet.state in {
             ServiceState.DISCONNECTED, ServiceState.UNREACHABLE,
         }
-        return self.engine.evaluate(snapshot, self.telemetry.history(), internet_unavailable)
+        return self.engine.evaluate(snapshot, self.telemetry.history(), internet_unavailable,
+                                    ignore_cpu=self.ai_busy())
 
     async def internet_state(self) -> str:
         self.connectivity_report = await self.connectivity.inspect(probe=True)
@@ -144,6 +146,10 @@ class Agent:
         await asyncio.to_thread(self.company_sender.queue_day, self.worktime.day(), self.incidents.history(50))
         return await self.company_sender.flush()
 
+    def ai_busy(self) -> bool:
+        """True while the local AI runs (and 15 s after): its CPU use must not count as the PC being slow."""
+        return self.diagnosis.is_loading or time.monotonic() < self.ai_quiet_until
+
     def lost_time_causes(self) -> list[str]:
         """Tool problems right now that make active time count as lost time."""
         causes: list[str] = []
@@ -153,7 +159,7 @@ class Agent:
         }):
             causes.append("offline")
         latest = self.telemetry.latest()
-        if latest and self.engine.cpu_result(latest, self.telemetry.history())[0]:
+        if latest and not self.ai_busy() and self.engine.cpu_result(latest, self.telemetry.history())[0]:
             causes.append("pc_overloaded")
         return causes
 
@@ -197,8 +203,11 @@ class Agent:
         else:
             latest = self.telemetry.latest()
             findings = self.readiness(latest).findings if latest else []
-        result = await self.diagnosis.explain([item.model_dump(mode="json") for item in findings],
-                                              question=question, network=await self.connectivity_status())
+        try:
+            result = await self.diagnosis.explain([item.model_dump(mode="json") for item in findings],
+                                                  question=question, network=await self.connectivity_status())
+        finally:
+            self.ai_quiet_until = time.monotonic() + 15
         if generation == self.history_generation:
             diagnosis = DiagnosisRecord(session_id=session_id, result=result)
             self.store.put("diagnosis", diagnosis.id, diagnosis)

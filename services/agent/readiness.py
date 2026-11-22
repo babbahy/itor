@@ -22,7 +22,7 @@ class ReadinessEngine:
             return self.cpu_elevated, span
 
     def evaluate(self, snapshot: DeviceSnapshot, history: list[DeviceSnapshot],
-                 internet_unavailable: bool = False) -> ReadinessReport:
+                 internet_unavailable: bool = False, ignore_cpu: bool = False) -> ReadinessReport:
         findings: list[Finding] = []
         checks: list[Check] = []
 
@@ -35,6 +35,8 @@ class ReadinessEngine:
                                     recommended_action_ids=actions or [], window_seconds=round(window, 1)))
 
         high_cpu, window = self.cpu_result(snapshot, history)
+        if ignore_cpu:  # itor's own local AI is using the processor: not the employee's problem
+            high_cpu = False
         pressure = [
             ("cpu", "Processor load", snapshot.cpu_percent, high_cpu,
              "Sustained CPU activity", "High processor demand can make video or screen sharing less responsive.", window),

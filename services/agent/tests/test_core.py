@@ -240,3 +240,11 @@ async def test_expired_approval_cannot_be_replayed(tmp_path):
         assert (await client.post(f"/api/actions/{plan['id']}/approve", json=body)).status_code == 410
         assert (await client.get("/api/demo/status")).json()["active"]
         assert (await client.post("/api/demo/stop", json={"confirm": True})).status_code == 200
+
+
+def test_cpu_warning_can_be_ignored_while_itor_ai_runs():
+    busy = observed(cpu=96)
+    fixture = FixtureTelemetryProvider([busy, busy, busy])
+    engine = ReadinessEngine(cpu_window=2)
+    assert not any(item.category == "cpu" for item in
+                   engine.evaluate(fixture.capture(), fixture.history(), ignore_cpu=True).findings)

@@ -96,7 +96,8 @@ def network_observations(network: ConnectivityReport) -> dict[str, dict[str, str
     return {
         key: {
             "state": observation.state.value,
-            "observation": observation.explanation,
+            "observation": observation.explanation if observation.state != ServiceState.NOT_CONFIGURED
+            else "Not tested on this PC (no test address is set). This is normal and is not a problem.",
         }
         for key in ("network_interface", "gateway", "dns_resolver", "dns", "internet", "nexthink", "nexthink_auth")
         if (observation := getattr(network, key))
@@ -215,6 +216,7 @@ class RulesBasedDiagnosisProvider:
 system_prompt = (
     "You are itor's helper. You explain device and network problems to an employee in plain, simple words. "
     "The JSON observations are the only evidence. Briefly describe what the checks mean and the likely impact on their work. Phrase possible causes as possibilities. "
+    "A check marked not tested or not configured was simply not run: never present it as a fault. "
     "Do not invent measurements, readings, states, personal details, Wi-Fi identities, or successful fixes. "
     "Do not repeat or invent numeric measurements. Do not include shell commands, scripts, links, or passwords. "
     "For network issues, suggest only safe manual checks in system settings, through IT, or through itor. "
