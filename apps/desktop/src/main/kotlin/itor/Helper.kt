@@ -15,7 +15,7 @@ import java.util.Base64
  * - Installed app: runs <app>/resources/itor-helper/itor-helper.exe (built by scripts/build-helper.ps1).
  * - Development: runs `python -m services.agent.serve` from the repository's .venv.
  */
-class Helper(private val config: Config) {
+internal class Helper(private val config: Config, private val ollama: OllamaEndpoint? = null) {
     // ITOR_DEV_PORT / ITOR_DEV_KEY: fixed values for testing; normally a free port and a random key.
     val port: Int = System.getenv("ITOR_DEV_PORT")?.toIntOrNull() ?: freePort()
     val key: String = System.getenv("ITOR_DEV_KEY")?.takeIf { it.length >= 16 } ?: randomKey()
@@ -41,6 +41,10 @@ class Helper(private val config: Config) {
         env["ITOR_AGENT_KEY"] = key
         env["ITOR_AGENT_PORT"] = port.toString()
         env["ITOR_DB_PATH"] = File(Paths.data, "itor.sqlite3").absolutePath
+        ollama?.let {
+            env["ITOR_OLLAMA_URL"] = it.url
+            env["ITOR_OLLAMA_MODEL"] = it.model
+        }
         // Real internet test so a Wi-Fi cut is seen even when a virtual adapter stays up.
         // An empty request to Google's connectivity page (the one Android/Chrome use); no data is sent.
         env.putIfAbsent("ITOR_INTERNET_PROBE_URL", "https://www.gstatic.com/generate_204")

@@ -32,11 +32,20 @@ import itor.Diagnosis
 import itor.FixState
 import itor.HomeStatus
 import itor.Model
+import itor.OfflineAi
+import itor.OfflineAiPhase
 import itor.Step
 import itor.Tone
 
 @Composable
-fun Home(model: Model, onAskIT: (String?) -> Unit, onMyDay: () -> Unit, noticeSeen: Boolean, onNoticeSeen: () -> Unit) {
+internal fun Home(
+    model: Model,
+    offlineAi: OfflineAi,
+    onAskIT: (String?) -> Unit,
+    onMyDay: () -> Unit,
+    noticeSeen: Boolean,
+    onNoticeSeen: () -> Unit,
+) {
     val status by model.status.collectAsState()
     val readiness by model.readiness.collectAsState()
     val down by model.down.collectAsState()
@@ -54,6 +63,7 @@ fun Home(model: Model, onAskIT: (String?) -> Unit, onMyDay: () -> Unit, noticeSe
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!noticeSeen) Notice(onNoticeSeen)
+        OfflineAiSetup(offlineAi, showReady = false)
         PixelLandscape(mood)
         StatusCard(home)
         when (val state = fix) {
@@ -72,7 +82,7 @@ fun Home(model: Model, onAskIT: (String?) -> Unit, onMyDay: () -> Unit, noticeSe
                 }
             }
         }
-        DailyPulse(day, status, onMyDay)
+        DailyPulse(day, status, offlineAi, onMyDay)
     }
     ApprovalDialog(model)
 }
@@ -229,15 +239,21 @@ private fun StepLine(step: Step, running: Boolean, startedAt: Long) {
 
 /** Daily value + offline protection at a glance. */
 @Composable
-private fun DailyPulse(day: itor.WorkDay?, status: itor.Status?, onMyDay: () -> Unit) {
+private fun DailyPulse(day: itor.WorkDay?, status: itor.Status?, offlineAi: OfflineAi, onMyDay: () -> Unit) {
     val active = day?.activeSeconds ?: 0.0
     val lost = day?.lostSeconds ?: 0.0
     val total = (active + lost).takeIf { it > 0 } ?: 1.0
-    val ai = status?.connectivity?.ollama?.state
-    val (aiText, aiColor) = when (ai) {
-        "connected" -> "Local AI: Ready · Offline-safe" to colors.ok
-        null -> "Local AI: checking" to colors.muted
-        else -> "Local AI: not installed · simple rules offline" to colors.warn
+    val setup by offlineAi.state.collectAsState()
+    val (aiText, aiColor) = when (setup.phase) {
+        OfflineAiPhase.READY -> "Local AI: ready for offline use" to colors.ok
+        OfflineAiPhase.PAUSED -> "Local AI: setup paused" to colors.warn
+        OfflineAiPhase.FAILED -> "Local AI: setup needs attention" to colors.warn
+        OfflineAiPhase.EXTERNAL -> when (status?.connectivity?.ollama?.state) {
+            "connected" -> "Local AI: ready for offline use" to colors.ok
+            null, "checking", "unknown" -> "Local AI: checking" to colors.muted
+            else -> "Local AI: unavailable · simple rules offline" to colors.warn
+        }
+        else -> "Local AI: preparing" to colors.muted
     }
     Card {
         Row2(left = { T("Daily pulse", 14, FontWeight.SemiBold) }, right = { LinkText("Details", onMyDay); Ico("chevron-right", 14, colors.muted) })

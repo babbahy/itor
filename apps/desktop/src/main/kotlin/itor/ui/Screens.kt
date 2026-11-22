@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import itor.Config
 import itor.Model
+import itor.OfflineAi
+import itor.OfflineAiPhase
 
 /** Modal over the window: flat card on a plain dim layer (no blur, no glass). */
 @Composable
@@ -150,7 +152,7 @@ private fun Bar(active: Double, lost: Double, idle: Double) {
 }
 
 @Composable
-fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Unit) {
+internal fun Settings(config: Config, demo: Boolean, model: Model, offlineAi: OfflineAi, onSave: (Config) -> Unit) {
     var name by remember { mutableStateOf(config.employeeName) }
     var gemini by remember { mutableStateOf(config.geminiKey) }
     var url by remember { mutableStateOf(config.companyUrl) }
@@ -158,18 +160,27 @@ fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Un
     var autostart by remember { mutableStateOf(config.autostart) }
     var showTeam by remember { mutableStateOf(config.showTeam) }
     var showDemo by remember { mutableStateOf(config.showDemo) }
+    val setup by offlineAi.state.collectAsState()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OfflineAiSetup(offlineAi, showReady = true)
         Card {
             T("Settings", 15, FontWeight.SemiBold)
-            val engine = model.status.collectAsState().value
-            val ready = engine?.connectivity?.ollama?.state == "connected"
-            Row(
-                Modifier.fillMaxWidth().border(1.dp, colors.border, SmallCorner).padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(Modifier.size(6.dp).background(if (ready) colors.ok else colors.warn, SmallCorner))
-                T("Offline engine", 13, FontWeight.Medium)
-                M(if (ready) "Local open-weight model · ${engine?.model ?: "qwen"} (Ready)" else "Local model not installed", 11, colors.muted)
+            if (setup.phase == OfflineAiPhase.EXTERNAL) {
+                val engine by model.status.collectAsState()
+                val ready = engine?.connectivity?.ollama?.state == "connected"
+                Row(
+                    Modifier.fillMaxWidth().border(1.dp, colors.border, SmallCorner).padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.size(6.dp).background(if (ready) colors.ok else colors.warn, SmallCorner))
+                    T("Offline engine", 13, FontWeight.Medium)
+                    val status = when {
+                        ready -> "${engine?.model ?: "Qwen"} · ready"
+                        engine == null -> "Checking local AI"
+                        else -> "Local AI unavailable"
+                    }
+                    M(status, 11, colors.muted)
+                }
             }
             Label("your name (shown to your manager)")
             Field(name, { name = it }, "default: Windows user name")

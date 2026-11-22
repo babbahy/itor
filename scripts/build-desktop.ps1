@@ -1,4 +1,4 @@
-# Builds the employee installer: apps/desktop/build/compose/binaries/main/msi/itor-1.0.0.msi
+# Builds the employee installer under apps/desktop/build/compose/binaries/main/msi.
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 & "$PSScriptRoot/build-helper.ps1"

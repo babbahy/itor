@@ -12,6 +12,16 @@ make build
 
 The Python suite covers telemetry and readiness, the time clock, outage logs, the company outbox and ranking, Gemini fallback, action consent, owned-process checks, measured verification, expiration and duplicate prevention. Connectivity tests cover internet, DNS, Ollama and Nexthink as separate services, plus recovery stability and simulation. Sync tests use a test sender to exercise event eligibility, deduplication, retry limits and jitter. Ollama contract tests use a local transport double for structured responses, invalid output, and the rules fallback.
 
+## Windows first-launch setup
+
+Run `bash gradlew test` on Linux or `.\gradlew.bat test` on Windows from `apps/desktop` with JDK 17. The desktop tests use local fixtures for the download and setup lifecycle.
+
+1. Build the Windows MSI from this checkout with `.\scripts\build-desktop.ps1`. Install it on a Windows x64 test account with no configured Ollama endpoint or model.
+2. Open itor with Internet access. Check that **Preparing offline AI** shows progress while the helper remains usable. Pause, close and reopen the window, then click **Resume**. Check that a partial download can continue.
+3. Wait for **Offline AI ready** in Settings, quit from the tray, disconnect Internet access, and open itor again. Under **Fix my problem**, enter “Why is my Wi-Fi offline?” and click **Check and fix**. Confirm the result says `source: local-ai · qwen3.5:2b`.
+
+## API smoke
+
 For a running app, check the real API path and action through the Next.js proxy.
 
 ```bash

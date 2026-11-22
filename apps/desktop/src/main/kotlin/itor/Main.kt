@@ -30,6 +30,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import itor.ui.Home
 import itor.ui.ItorTheme
 import itor.ui.M
 import itor.ui.MyDay
+import itor.ui.OfflineAiSetup
 import itor.ui.Settings
 import itor.ui.Team
 import itor.ui.Spinner
@@ -114,30 +116,51 @@ fun main(args: Array<String>) {
         var askItOpen by remember { mutableStateOf(false) }
         var cfg by remember { mutableStateOf(config) }
         val scope = rememberCoroutineScope()
+        val offlineAi = remember {
+            val installedOnWindows = System.getProperty("os.name").startsWith("Windows", ignoreCase = true) &&
+                System.getProperty("os.arch") in setOf("amd64", "x86_64") &&
+                Helper.packedHelper() != null
+            OfflineAi(File(Paths.data, "offline-ai"), installedOnWindows, scope)
+        }
+        var offlineAiOpened by remember { mutableStateOf(false) }
 
         fun startHelper(c: Config) {
+            DemoAccess.clear()
             model?.stop(); helper?.stop()
             model = null; startError = null
             Thread {
-                val h = Helper(c)
+                var candidate: Helper? = null
                 try {
+                    val endpoint = runCatching { offlineAi.endpoint() }.getOrNull()
+                    val h = Helper(c, endpoint)
+                    candidate = h
                     h.start()
                     if (!h.waitReady()) error("The helper did not start. See ${File(Paths.data, "helper.log")}")
                     helper = h
                     DemoAccess.update(h, demo || c.showDemo)
                     model = Model(Api(h.baseUrl, h.key), scope, hasGemini = c.geminiKey.isNotBlank()).also { it.start() }
                 } catch (e: Exception) {
-                    h.stop(); startError = e.message
+                    candidate?.stop(); startError = e.message
                 }
             }.apply { isDaemon = true }.start()
         }
 
-        DisposableEffect(Unit) {
+        DisposableEffect(offlineAi) {
             startHelper(cfg)
-            onDispose { DemoAccess.clear(); model?.stop(); helper?.stop() }
+            onDispose {
+                DemoAccess.clear()
+                model?.stop()
+                helper?.stop()
+                offlineAi.close()
+            }
+        }
+        LaunchedEffect(visible) {
+            if (visible && !offlineAiOpened) {
+                offlineAiOpened = true
+                offlineAi.start()
+            }
         }
 
-        fun quit() { DemoAccess.clear(); model?.stop(); helper?.stop(); exitApplication() }
         fun open(target: Screen = Screen.HOME) { screen = target; visible = true }
 
         Tray(
@@ -163,7 +186,7 @@ fun main(args: Array<String>) {
                     }
                 }
                 Separator()
-                Item("Quit", onClick = { quit() })
+                Item("Quit", onClick = { exitApplication() })
             },
         )
 
@@ -183,9 +206,17 @@ fun main(args: Array<String>) {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
                             val m = model
                             when {
-                                startError != null -> T(startError!!, 13, color = colors.warn)
-                                m == null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Spinner(); T("Starting itor", 13, color = colors.muted)
+                                m == null -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    val error = startError
+                                    if (error != null) {
+                                        T(error, 13, color = colors.warn)
+                                    } else {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Spinner()
+                                            T("Starting itor", 13, color = colors.muted)
+                                        }
+                                    }
+                                    OfflineAiSetup(offlineAi, showReady = false)
                                 }
                                 // Tab switch: quick fade + 6 dp rise, 180 ms ease-out.
                                 else -> AnimatedContent(
@@ -199,6 +230,7 @@ fun main(args: Array<String>) {
                                     when (tab) {
                                         Screen.HOME -> Home(
                                             m,
+                                            offlineAi = offlineAi,
                                             onAskIT = { diagnosis -> askIt = diagnosis; m.resetTicket(); askItOpen = true },
                                             onMyDay = { screen = Screen.DAY },
                                             noticeSeen = cfg.noticeSeen,
@@ -206,7 +238,7 @@ fun main(args: Array<String>) {
                                         )
                                         Screen.DAY -> MyDay(m)
                                         Screen.TEAM -> Team(m)
-                                        Screen.SETTINGS -> Settings(cfg, demo, m) { updated ->
+                                        Screen.SETTINGS -> Settings(cfg, demo, m, offlineAi) { updated ->
                                             cfg = updated; config = updated
                                             ConfigStore.save(updated); applyAutostart(updated.autostart)
                                             startHelper(updated); screen = Screen.HOME

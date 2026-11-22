@@ -1,11 +1,12 @@
 # Five-minute demo (live)
 
 ## Before you go on stage
-1. itor 1.0.10 installed and open (Start menu → itor). **Settings → Show manager view (demo)** ticked.
-2. **itor demo panel** installed and open (Start menu → itor demo panel), in a corner of the screen or on your laptop's screen if you project the other one. Its buttons trigger the scenarios: stuck video export, memory leak, sync loop, outage, demo morning.
-3. Ollama running with `qwen3.5:4b`. Do **Fix my problem** once before going on stage: the first local-AI answer is the slowest (it loads the model).
-4. Close heavy apps: the local AI runs on the processor.
-5. Know where to turn Wi-Fi off and on (taskbar network icon, or airplane mode).
+
+1. Open itor 1.0.10 from the Start menu. In **Settings**, enable **Show manager view** and **Show demo tools**, then click **Save and restart helper**.
+2. Open **itor demo panel** from the Start menu. Keep it in a corner of the screen or on the laptop screen if you project a second display. The panel can trigger stuck video export, memory leak, sync loop, network outage, and demo morning scenarios.
+3. Prepare local AI. With an MSI built from this checkout, open itor while online and wait for **Offline AI ready** or for Settings to show your existing model as ready. The first setup downloads about 4.3 GB on a fresh PC. With the published v1.0.10 MSI, start Ollama with `qwen3.5:4b` already downloaded. [Setup instructions](../README.md#set-up-ollama-manually)
+4. Rehearse **Fix my problem** using “websites do not load” offline and check that the answer shows `source: local-ai`. This loads the model before you go on stage. Close heavy apps to give the model more room to run.
+5. Know where to turn Wi-Fi off and on using the taskbar.
 
 ## Script
 
@@ -21,7 +22,8 @@
 | 4:40–5:00 | Back to **Home**. | One app: count your time, and when a tool steals it, get it back, even offline. |
 
 ## If something goes wrong
+
 - **Local AI slow:** the step list shows the seconds ticking; keep talking. If it fails, itor answers with simple rules (labeled `source: rules`).
-- **Wi-Fi off but Home still "fine":** wait ~5 s (itor checks every few seconds), or use Settings → Demo → Simulate outage (needs `--demo`).
+- If **Home** still says “Everything looks fine” after you turn off Wi-Fi, wait for the next connection check. If needed, click **Simulate outage** in **itor demo panel** or the employee app’s **Demo** settings. Identify it as a simulation and click **End outage** at the reconnect step.
 - **Ticket not in Team:** wait a few seconds after Wi-Fi is back, then reopen the Team tab.
 - **Window gone:** it's in the tray (bottom right, black square with an "i").

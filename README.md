@@ -13,7 +13,7 @@ See [PLAN.md](PLAN.md) for the plan and status, and [docs/PRIVACY.md](docs/PRIVA
 
 Employees use **itor for Windows** (`apps/desktop`, Kotlin + Compose). It is a normal app with a tray icon that starts with Windows and needs no admin rights. It starts its own helper (`itor-helper.exe`, the Python code in `services/agent` packed with PyInstaller).
 
-Build the installer (needs JDK 17 and the `.venv` from `./scripts/setup.ps1`):
+Build the installer on Windows with JDK 17, WiX 3, and the `.venv` from `./scripts/setup.ps1`.
 
 ```powershell
 ./scripts/build-desktop.ps1
@@ -21,9 +21,15 @@ Build the installer (needs JDK 17 and the `.venv` from `./scripts/setup.ps1`):
 
 Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.10.msi`.
 
-**Deploy (IT):** install the MSI per user (`msiexec /i itor-1.0.10.msi /qn`), plus, for the offline AI, Ollama and the model (`winget install Ollama.Ollama`, then `ollama pull qwen3.5:4b`). Without Ollama, itor uses simple rules. Each employee can set a name and a Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, settings in `%APPDATA%\itor\config.json`.
+Install the chosen MSI per user with `msiexec /i itor-1.0.10.msi /qn` from the folder containing it. Each employee can set a name and an optional Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, and settings live in `%APPDATA%\itor\config.json`.
 
-**Demo panel (presenter only):** a second, separate app, **itor demo panel** (`apps/demo-panel`), with buttons that simulate problems: stuck video export, memory leak, sync loop, network outage, demo morning. Build it with `./scripts/build-demo-panel.ps1`. It works only while itor runs with **Settings → Show demo tools** on: itor then writes its local address and key to `%LOCALAPPDATA%\itor-data\demo-access.json` (readable by your Windows account only, deleted when itor quits). Employees don't get this app.
+**MSI built from this checkout with `build-desktop.ps1`.** Open itor while online to start automatic offline AI setup. On a fresh Windows x64 PC it downloads a verified standalone Ollama runtime and Qwen 3.5 2B, about 4.3 GB combined. Allow about 6 GB of free disk space. Basic checks use simple rules during setup, and you can pause, resume, or retry in the app. Once it says **Offline AI ready**, Qwen can answer without internet access or an API key.
+
+itor manages its own local Ollama process and stores downloads under `%LOCALAPPDATA%\itor-data\offline-ai`. It can reuse an existing local Ollama serving Qwen 3.5 2B or 4B. Set `ITOR_OLLAMA_URL` or `ITOR_OLLAMA_MODEL` to select an existing runtime explicitly. [Standalone Ollama for Windows](https://docs.ollama.com/windows#standalone-cli)
+
+**Published v1.0.10 MSI.** To use offline AI with the release installer, install Ollama separately (`winget install Ollama.Ollama`) and run `ollama pull qwen3.5:4b`. itor uses simple rules until Ollama and the model are available.
+
+The separate **itor demo panel** (`apps/demo-panel`) gives presenters controls for stuck video export, memory leak, sync loop, network outage, and a demo morning. Build it with `./scripts/build-demo-panel.ps1`. With **Settings → Show demo tools** on, itor writes its local address and key to `%LOCALAPPDATA%\itor-data\demo-access.json`. The file is readable by your Windows account only, and itor deletes it on quit. The employee app is distributed separately.
 
 **Develop:** `cd apps/desktop; ./gradlew run` (add `-Pdemo` for the demo menu). In development the app runs the helper from `.venv`.
 
@@ -51,7 +57,9 @@ make start
 
 On Windows, set `$env:NEXT_TELEMETRY_DISABLED = '1'`, run `npm --prefix apps/web run build`, then run `./scripts/dev.ps1 start`. Copy [.env.example](.env.example) to `.env` to change ports, storage, the model, or the approved connectivity endpoint. An exact web origin is used for request protection, so open the URL printed by the launcher.
 
-## Enable local Qwen
+## Set up Ollama manually
+
+Use these steps for the published Windows installer, the web console, or a desktop development run. For automatic setup, use a Windows MSI built from this checkout.
 
 Install a current version of [Ollama for your operating system](https://ollama.com/download). Start Ollama and download one local model while online. The model download is several gigabytes. [Qwen model sizes and variants](https://ollama.com/library/qwen3.5).
 
