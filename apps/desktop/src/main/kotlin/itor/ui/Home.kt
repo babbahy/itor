@@ -50,7 +50,7 @@ fun Home(model: Model, onAskIT: (String?) -> Unit, onMyDay: () -> Unit, noticeSe
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!noticeSeen) Notice(onNoticeSeen)
-        PixelField(mood)
+        PixelLandscape(mood)
         StatusCard(home)
         when (val state = fix) {
             FixState.Idle -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

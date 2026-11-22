@@ -143,9 +143,11 @@ fun main(args: Array<String>) {
             icon = TrayIcon,
             state = rememberWindowState(size = DpSize(460.dp, 680.dp)),
         ) {
-            ItorTheme {
+            ItorTheme(dark = cfg.theme != "light") {
                 Column(Modifier.fillMaxSize().background(colors.bg)) {
-                    TopBar(screen, cfg.showTeam) { screen = it }
+                    TopBar(screen, cfg.showTeam, dark = cfg.theme != "light",
+                        onTheme = { cfg = cfg.copy(theme = if (cfg.theme == "light") "dark" else "light"); ConfigStore.save(cfg) },
+                    ) { screen = it }
                     Box(Modifier.fillMaxSize()) {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
                             val m = model
@@ -180,7 +182,7 @@ fun main(args: Array<String>) {
 }
 
 @Composable
-private fun TopBar(screen: Screen, showTeam: Boolean, onSelect: (Screen) -> Unit) {
+private fun TopBar(screen: Screen, showTeam: Boolean, dark: Boolean, onTheme: () -> Unit, onSelect: (Screen) -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(colors.surface).border(width = 0.dp, color = colors.border).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -192,6 +194,10 @@ private fun TopBar(screen: Screen, showTeam: Boolean, onSelect: (Screen) -> Unit
                 Screen.SETTINGS to "Settings").forEach { (target, label) ->
                 T(label, 13, if (target == screen) FontWeight.SemiBold else FontWeight.Normal,
                     if (target == screen) colors.text else colors.muted, Modifier.clickable { onSelect(target) })
+            }
+            // Light / dark toggle: shows the mode you switch to.
+            Box(Modifier.clickable(onClick = onTheme)) {
+                itor.ui.Ico(if (dark) "sun" else "moon", 15, colors.muted)
             }
         }
     }

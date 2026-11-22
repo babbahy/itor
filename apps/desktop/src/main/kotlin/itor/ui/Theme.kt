@@ -62,13 +62,16 @@ data class Palette(
 )
 
 val Light = Palette(
-    bg = Color(0xFFFAFAFA), surface = Color(0xFFFFFFFF), border = Color(0xFFE5E7EB), text = Color(0xFF0A0A0A),
-    muted = Color(0xFF6B7280), ok = Color(0xFF059669), warn = Color(0xFFB45309), inverse = Color(0xFF0A0A0A), onInverse = Color(0xFFFAFAFA),
+    bg = Color(0xFFF7F7F7), surface = Color(0xFFFFFFFF), border = Color(0xFFE2E2E2), text = Color(0xFF111111),
+    muted = Color(0xFF6B6B6B), ok = Color(0xFF059669), warn = Color(0xFFB45309), inverse = Color(0xFF111111), onInverse = Color(0xFFF7F7F7),
 )
 val Dark = Palette(
-    bg = Color(0xFF0A0A0A), surface = Color(0xFF111111), border = Color(0xFF262626), text = Color(0xFFFAFAFA),
-    muted = Color(0xFFA3A3A3), ok = Color(0xFF34D399), warn = Color(0xFFFBBF24), inverse = Color(0xFFFAFAFA), onInverse = Color(0xFF0A0A0A),
+    bg = Color(0xFF0E1013), surface = Color(0xFF14161A), border = Color(0xFF262A30), text = Color(0xFFF2F2F2),
+    muted = Color(0xFF9CA0A6), ok = Color(0xFF34D399), warn = Color(0xFFFBBF24), inverse = Color(0xFFF2F2F2), onInverse = Color(0xFF0E1013),
 )
+
+/** Pixel landscape only: the red sun of the day scene. */
+val SunRed = Color(0xFFD93829)
 
 val LocalPalette = staticCompositionLocalOf { Light }
 val colors: Palette @Composable get() = LocalPalette.current
@@ -87,8 +90,8 @@ val Corner = RoundedCornerShape(6.dp)
 val SmallCorner = RoundedCornerShape(4.dp)
 
 @Composable
-fun ItorTheme(content: @Composable () -> Unit) {
-    val palette = if (isSystemInDarkTheme()) Dark else Light
+fun ItorTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+    val palette = if (dark) Dark else Light
     val scheme = (if (palette == Dark) darkColorScheme() else lightColorScheme()).copy(
         background = palette.bg, surface = palette.surface, onSurface = palette.text, onBackground = palette.text,
         primary = palette.inverse, onPrimary = palette.onInverse, outline = palette.border,

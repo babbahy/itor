@@ -14,6 +14,8 @@ data class Config(
     val autostart: Boolean = true,
     val noticeSeen: Boolean = false,
     val showTeam: Boolean = false,
+    /** "dark" (default) or "light". */
+    val theme: String = "dark",
 )
 
 object Paths {
