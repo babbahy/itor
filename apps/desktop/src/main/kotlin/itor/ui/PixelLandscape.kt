@@ -2,6 +2,7 @@ package itor.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -86,6 +87,8 @@ fun PixelLandscape(mood: Mood, modifier: Modifier = Modifier) {
     val night = LocalNight.current
     val scene = remember(night) { buildScene(night) }
     val stars = remember { Random(5).let { r -> List(46) { r.nextInt(COLS) to r.nextInt(2, HORIZON - 12) } } }
+    // Rain drops: x, speed (rows per frame), start offset. Fixed seed, so the rain looks the same each time.
+    val drops = remember { Random(21).let { r -> List(90) { Triple(r.nextInt(COLS), 0.9f + r.nextFloat() * 0.8f, r.nextInt(ROWS * 4)) } } }
     val currentMood by rememberUpdatedState(mood)
     var frame by remember { mutableIntStateOf(0) }
     // Retro low frame rate: ~10 fps normally, faster ripples when something is wrong.
@@ -107,6 +110,8 @@ fun PixelLandscape(mood: Mood, modifier: Modifier = Modifier) {
         rise.animateTo(1f, tween(900, easing = LinearOutSlowInEasing))
     }
     val trouble = mood == Mood.WARN || mood == Mood.OFFLINE
+    // Rain fades in when there is a problem and fades out when it is fixed.
+    val rain by animateFloatAsState(if (trouble) 1f else 0f, tween(800, easing = LinearOutSlowInEasing))
     val tint = if (trouble) colors.warn else ink
     // Sun (day, right) or moon (night, left): fixed anchors.
     val orbX = if (night) 36 else 118
@@ -179,6 +184,21 @@ fun PixelLandscape(mood: Mood, modifier: Modifier = Modifier) {
                 for (dx in -half..half) {
                     if ((dx + row + f / 2) % 4 == 0) continue
                     put(orbX + dx + wobble, y, if (night) ink.copy(alpha = 0.85f) else SunRed)
+                }
+            }
+
+            // Rain (only on a problem): short slanted streaks falling to the water, small splashes on it.
+            if (rain > 0.01f) {
+                val visible = (drops.size * rain).toInt()
+                val dropColor = ink.copy(alpha = (if (night) 0.55f else 0.45f) * rain)
+                for (i in 0 until visible) {
+                    val (dx, speed, start) = drops[i]
+                    val y = ((start + f * speed).toInt() % (HORIZON + 10)) - 4
+                    val x = (dx - y / 4 + COLS) % COLS // slight slant, like wind
+                    for (k in 0..2) if (y - k in 0 until HORIZON + 2) put(x + k / 3, y - k, dropColor)
+                }
+                for (y in HORIZON + 1 until ROWS) for (x in 0 until COLS step 2) {
+                    if (speck(x, y * 31 + f, 0.012f * rain)) { put(x, y, dropColor); put(x + 1, y, dropColor) }
                 }
             }
         }
