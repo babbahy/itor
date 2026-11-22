@@ -128,3 +128,21 @@ def test_preview_is_mirrored_and_only_while_open():
     assert abs(frame.face[0] - 0.6) < 1e-9          # mirrored: 1 - 0.1 - 0.3
     assert frame.posture.label == "Good posture"
     assert w.calibrate().calibrated is True
+
+
+def test_looking_down_is_timed_and_only_while_present():
+    from services.agent.presence import PresenceWatcher, head_pitch
+    now = [0.0]
+    w = PresenceWatcher(True, away_after=10, clock=lambda: now[0])
+    screen = [(0.4, 0.4), (0.6, 0.4), (0.5, 0.5), (0.5, 0.6), (0.3, 0.45), (0.7, 0.45)]
+    phone = [(0.4, 0.4), (0.6, 0.4), (0.5, 0.58), (0.5, 0.66), (0.3, 0.38), (0.7, 0.38)]
+    assert head_pitch(phone) > head_pitch(screen) + 0.4
+    for _ in range(5):  # learns the usual pitch while looking at the screen
+        w.observe(True); w.observe_head(True, True, head_pitch(screen)); now[0] += 2
+    assert w.report().looking_down_seconds == 0
+    w.observe(True); w.observe_head(True, True, head_pitch(phone)); now[0] += 30
+    assert w.report().looking_down_seconds == 30
+    w.observe(True); w.observe_head(True, False, None)  # face hidden but body seen: still looking away
+    assert w.report().looking_down_seconds == 30
+    w.observe(True); w.observe_head(True, True, head_pitch(screen))
+    assert w.report().looking_down_seconds == 0

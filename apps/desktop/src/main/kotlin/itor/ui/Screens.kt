@@ -171,6 +171,7 @@ internal fun Settings(config: Config, demo: Boolean, model: Model, offlineAi: Of
     var showTeam by remember { mutableStateOf(config.showTeam) }
     var showDemo by remember { mutableStateOf(config.showDemo) }
     var webcam by remember { mutableStateOf(config.webcamPresence) }
+    var reminders by remember { mutableStateOf(config.focusReminders) }
     val setup by offlineAi.state.collectAsState()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OfflineAiSetup(offlineAi, showReady = true)
@@ -219,8 +220,16 @@ internal fun Settings(config: Config, demo: Boolean, model: Model, offlineAi: Of
                     T("On this PC only. No image is saved or sent: only present / away. Off by default.", 11, color = colors.muted)
                 }
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(reminders, { reminders = it }, colors = CheckboxDefaults.colors(checkedColor = colors.inverse, checkmarkColor = colors.onInverse))
+                Column {
+                    T("Focus reminders", 13)
+                    T("A gentle notification when you look at your phone for a while (needs the webcam) or after a long pause. " +
+                        "Only on this PC: never saved, never sent, your manager never sees it.", 11, color = colors.muted)
+                }
+            }
             Btn("Save and restart helper", {
-                onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart, showTeam = showTeam, showDemo = showDemo, webcamPresence = webcam))
+                onSave(config.copy(employeeName = name, geminiKey = gemini, companyUrl = url, companyKey = key, autostart = autostart, showTeam = showTeam, showDemo = showDemo, webcamPresence = webcam, focusReminders = reminders))
             }, primary = true)
         }
         if (demo || showDemo) Card {

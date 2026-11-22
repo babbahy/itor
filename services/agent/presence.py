@@ -23,6 +23,23 @@ from .posture import Calibration, Posture, analyse, measures
 
 PresenceState = Literal["off", "starting", "present", "away", "no_camera", "error"]
 MODELS = Path(__file__).with_name("models")
+HEAD_DOWN = 0.4  # head pitch above the usual one by this much = looking down (phone on the lap or desk)
+
+
+def head_pitch(keypoints: list[tuple[float, float]] | None) -> float | None:
+    """How far the head is tilted down, from the 6 face points (eyes, nose, mouth, ears).
+
+    When the head tilts down, the nose goes down and the ears go up in the image. Divided by the eye distance,
+    so it does not depend on how far the person sits. Bigger = looking further down.
+    """
+    if not keypoints or len(keypoints) < 6:
+        return None
+    (rx, ry), (lx, ly), (_, nose_y) = keypoints[0], keypoints[1], keypoints[2]
+    eyes = abs(rx - lx)
+    if eyes < 1e-3:
+        return None
+    ear_y = (keypoints[4][1] + keypoints[5][1]) / 2
+    return (nose_y - ear_y) / eyes
 
 
 class Landmark(BaseModel):
@@ -40,12 +57,16 @@ class PresenceFrame(BaseModel):
     landmarks: list[Landmark] = []
     face: list[float] | None = None  # x, y, w, h in 0..1
     posture: Posture | None = None
+    looking_down: bool = False
 
 
 class PresenceReport(BaseModel):
     enabled: bool
     state: PresenceState
     seconds_since_seen: float | None = None
+    # Seconds the person has been looking down / away from the screen (phone). Only for a private reminder
+    # on this PC: never stored, never sent, never counted in the time clock.
+    looking_down_seconds: float = 0.0
     detail: str = ""
 
 
@@ -84,15 +105,16 @@ class MediaPipeDetector:
     def __call__(self, rgb_frame: Any) -> bool:
         return self.analyse(rgb_frame, with_pose=False)[0]
 
-    def analyse(self, rgb_frame: Any, with_pose: bool) -> tuple[bool, list[tuple[float, float, float]] | None, list[float] | None]:
-        """(someone there, pose points, face box). The pose model runs only when needed (preview, or no face)."""
+    def analyse(self, rgb_frame: Any, with_pose: bool) -> tuple[bool, list[tuple[float, float, float]] | None, list[float] | None, float | None]:
+        """(someone there, pose points, face box, head pitch). The pose model runs only when needed (preview, or no face)."""
         image = self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=rgb_frame)
         faces = self.face.detect(image).detections
-        face = None
+        face = pitch = None
         if faces:
             box = faces[0].bounding_box
             h, w = rgb_frame.shape[0], rgb_frame.shape[1]
             face = [box.origin_x / w, box.origin_y / h, box.width / w, box.height / h]
+            pitch = head_pitch([(k.x, k.y) for k in faces[0].keypoints or []])
         points = None
         if with_pose or not faces:
             landmarks = self.pose.detect(image).pose_landmarks
@@ -100,7 +122,7 @@ class MediaPipeDetector:
                 points = [(p.x, p.y, p.visibility) for p in landmarks[0]]
         # Face, or nose / a shoulder clearly visible, counts as someone there (Birdy's landmarks).
         seen = bool(faces) or (points is not None and max(points[i][2] for i in (0, 11, 12)) >= 0.5)
-        return seen, points, face
+        return seen, points, face, pitch
 
     def close(self) -> None:
         self.face.close()
@@ -151,6 +173,11 @@ class PresenceWatcher:
         self._frame: PresenceFrame | None = None
         self._last_points: list[tuple[float, float, float]] | None = None
         self._lock = threading.Lock()
+        # Looking down (phone): the usual head pitch is learned while looking at the screen.
+        self.head_baseline: float | None = None
+        self.head_calibrated = False
+        self.down_since: float | None = None
+        self._last_pitch: float | None = None
 
     def start(self) -> None:
         if self.enabled and self._thread is None:
@@ -171,6 +198,27 @@ class PresenceWatcher:
         elif self.last_seen is None or now - self.last_seen >= self.away_after:
             self.state = "away"
 
+    def observe_head(self, seen: bool, has_face: bool, pitch: float | None) -> None:
+        """Seen but face not visible (head down or turned) or head clearly tilted down = looking away from the screen."""
+        now = self.clock()
+        self._last_pitch = pitch
+        if not seen:
+            self.down_since = None
+            return
+        down = not has_face or (pitch is not None and self.head_baseline is not None and pitch > self.head_baseline + HEAD_DOWN)
+        if has_face and pitch is not None and not down and not self.head_calibrated:
+            # Slowly learn the usual "looking at the screen" pitch.
+            self.head_baseline = pitch if self.head_baseline is None else 0.9 * self.head_baseline + 0.1 * pitch
+        if down:
+            self.down_since = self.down_since if self.down_since is not None else now
+        else:
+            self.down_since = None
+
+    def looking_down_seconds(self) -> float:
+        if self.state != "present" or self.down_since is None:
+            return 0.0
+        return round(self.clock() - self.down_since, 1)
+
     def _run(self) -> None:
         source = detector = None
         try:
@@ -185,9 +233,16 @@ class PresenceWatcher:
                 frame = source()
                 if frame is not None:
                     if previewing and hasattr(detector, "analyse"):
-                        seen, points, face = detector.analyse(frame, with_pose=True)
+                        seen, points, face, pitch = detector.analyse(frame, with_pose=True)
                         self.observe(seen)
+                        self.observe_head(seen, face is not None, pitch)
                         self._store_preview(frame, points, face)
+                    elif hasattr(detector, "analyse"):
+                        seen, _, face, pitch = detector.analyse(frame, with_pose=False)
+                        self.observe(seen)
+                        self.observe_head(seen, face is not None, pitch)
+                        with self._lock:
+                            self._frame = None  # preview closed: drop the last image
                     else:
                         self.observe(bool(detector(frame)))
                         with self._lock:
@@ -217,6 +272,7 @@ class PresenceWatcher:
                 width=int(mirrored.shape[1]), height=int(mirrored.shape[0]),
                 landmarks=[Landmark(x=x, y=y, v=v) for x, y, v in flipped_points] if flipped_points else [],
                 face=flipped_face, posture=analyse(points, self.calibration),
+                looking_down=self.down_since is not None,
             )
 
     def preview(self) -> PresenceFrame:
@@ -227,6 +283,8 @@ class PresenceWatcher:
 
     def calibrate(self) -> Posture:
         """Birdy's calibration: remember the current (straight) posture as the reference."""
+        if self._last_pitch is not None:  # also remember how the head looks when facing the screen
+            self.head_baseline, self.head_calibrated = self._last_pitch, True
         with self._lock:
             reference = measures(self._last_points) if self._last_points else None
         if reference is None:
@@ -246,7 +304,8 @@ class PresenceWatcher:
 
     def report(self) -> PresenceReport:
         since = None if self.last_seen is None else round(self.clock() - self.last_seen, 1)
-        return PresenceReport(enabled=self.enabled, state=self.state, seconds_since_seen=since, detail=self.detail)
+        return PresenceReport(enabled=self.enabled, state=self.state, seconds_since_seen=since,
+                              looking_down_seconds=self.looking_down_seconds(), detail=self.detail)
 
 
 def combined_idle(keyboard: Callable[[], float | None], presence: PresenceWatcher) -> Callable[[], float | None]:

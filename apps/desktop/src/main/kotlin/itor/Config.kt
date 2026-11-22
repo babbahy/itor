@@ -20,6 +20,8 @@ data class Config(
     val theme: String = "dark",
     /** Opt-in: use the webcam (on this PC only) to know if the employee is at the desk. */
     val webcamPresence: Boolean = false,
+    /** Opt-in: gentle Windows notifications (phone, long pause). Decided on this PC, never sent. */
+    val focusReminders: Boolean = false,
 )
 
 object Paths {

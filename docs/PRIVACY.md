@@ -18,6 +18,11 @@
 - **Local AI (Qwen via Ollama):** runs on the PC. Receives the same summary, without the question text.
 - **Simple rules:** run in the app, no AI.
 
+## Focus reminders (opt-in)
+- Off by default. Turned on in Settings > Focus reminders.
+- "Looking at your phone" comes from the webcam check above (head tilted down, or face turned away, for about 20 seconds). "Long pause" comes from no mouse/keyboard activity.
+- The decision is made on this PC and shown as a Windows notification. It is never saved, never sent, and never changes the time clock. Your manager never sees it.
+
 ## Storage
 - Local SQLite database (`.itor/`). Activity history is kept 7 days (`ITOR_RETENTION_DAYS`). Daily time totals are kept for pay.
 - **Privacy → Clear history** deletes local activity, diagnostics and time totals. Reports already received by the company server are kept there.

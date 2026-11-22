@@ -135,7 +135,8 @@ data class Team(
 )
 
 @Serializable
-data class Presence(val enabled: Boolean = false, val state: String = "off", val secondsSinceSeen: Double? = null, val detail: String = "")
+data class Presence(val enabled: Boolean = false, val state: String = "off", val secondsSinceSeen: Double? = null,
+                    val lookingDownSeconds: Double = 0.0, val detail: String = "")
 
 @Serializable data class Landmark(val x: Double, val y: Double, val v: Double)
 
@@ -150,6 +151,7 @@ data class PresenceFrame(
     val landmarks: List<Landmark> = emptyList(),
     val face: List<Double>? = null,
     val posture: PostureInfo? = null,
+    val lookingDown: Boolean = false,
 )
 
 class ApiError(message: String) : Exception(message)

@@ -114,12 +114,19 @@ fun Camera(model: Model) {
                 },
                 right = { M(if (posture?.calibrated == true) "calibrated" else "not calibrated", 11, colors.muted) },
             )
+            Row2(
+                left = {
+                    Box(Modifier.size(6.dp).background(if (f?.lookingDown == true) colors.warn else colors.ok, SmallCorner))
+                    M("  looking: ${if (f?.lookingDown == true) "away from screen" else "at screen"}", 12, if (f?.lookingDown == true) colors.warn else colors.muted)
+                },
+                right = { M("private, never sent", 11, colors.muted) },
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Btn("Calibrate", {
                     calibrating = true
                     scope.launch { model.calibratePosture(); calibrating = false }
                 }, busy = calibrating, icon = "check")
-                T("Sit up straight, then calibrate.", 12, color = colors.muted)
+                T("Sit up straight and look at the screen, then calibrate.", 12, color = colors.muted)
             }
         }
         T(

@@ -48,6 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Tray
+import androidx.compose.ui.window.Notification
+import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -166,7 +168,34 @@ fun main(args: Array<String>) {
 
         fun open(target: Screen = Screen.HOME) { screen = target; visible = true }
 
+        // Focus reminders: decided here on the PC, shown as a Windows notification, never stored or sent.
+        val trayState = rememberTrayState()
+        LaunchedEffect(model, cfg.focusReminders) {
+            val m = model ?: return@LaunchedEffect
+            if (!cfg.focusReminders) return@LaunchedEffect
+            var lastPhone = 0L
+            var lastPause = 0L
+            var idleSince: Long? = null
+            while (true) {
+                val now = System.currentTimeMillis()
+                val down = m.presence.value?.lookingDownSeconds ?: 0.0
+                if (down >= FocusRules.PHONE_SECONDS && now - lastPhone > FocusRules.PHONE_COOLDOWN_MS) {
+                    lastPhone = now
+                    trayState.sendNotification(Notification("Phone break?", "You've been looking away from the screen for a bit. Back to it when you're ready.", Notification.Type.Info))
+                }
+                val idle = m.worktime.value?.state == "idle"
+                idleSince = if (idle) idleSince ?: now else null
+                val since = idleSince
+                if (since != null && now - since >= FocusRules.PAUSE_MS && now - lastPause > FocusRules.PAUSE_COOLDOWN_MS) {
+                    lastPause = now
+                    trayState.sendNotification(Notification("Still working?", "No activity for a while, so your active time is paused. It starts again as soon as you are back.", Notification.Type.Info))
+                }
+                kotlinx.coroutines.delay(5_000)
+            }
+        }
+
         Tray(
+            state = trayState,
             icon = TrayIcon,
             tooltip = "itor",
             onAction = { open() },
