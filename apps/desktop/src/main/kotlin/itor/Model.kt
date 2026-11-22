@@ -114,7 +114,7 @@ class Model(private val api: Api, private val scope: CoroutineScope) {
                     .onSuccess { run ->
                         approval.value = null
                         lastResult.value = "${run.title}: ${run.status}" +
-                            (if (run.internetAfter != null) " · internet ${run.internetBefore} -> ${run.internetAfter}" else "") +
+                            (if (run.internetAfter != null && run.internetAfter != "not_configured") " · internet ${run.internetBefore} -> ${run.internetAfter}" else "") +
                             (run.message?.takeIf { run.status != "succeeded" }?.let { " · $it" } ?: "")
                     }
                     .onFailure { approval.value = current.copy(running = false, error = it.message) }

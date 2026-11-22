@@ -56,7 +56,7 @@ fun AskIt(model: Model, diagnosis: String?, onClose: () -> Unit) {
                 Ico(if (sent.sent) "send" else "wifi-off", 16, if (sent.sent) colors.ok else colors.warn)
                 T(if (sent.sent) "Sent to IT" else "Saved. It will be sent when you are back online.", 14, FontWeight.Medium)
             }
-            M("ticket ${sent.id.take(8)} · ${sent.createdAt.take(16).replace('T', ' ')} UTC", 12, colors.muted)
+            M("ticket ${sent.id.take(8)} · ${localTime(sent.createdAt)}", 12, colors.muted)
             Btn("Close", onClose, primary = true)
         } else {
             Label("what is wrong")
@@ -121,7 +121,7 @@ fun MyDay(model: Model) {
                 M(when {
                     company == null -> "--"
                     (company?.pending ?: 0) > 0 -> "${company?.pending} waiting (offline)"
-                    company?.lastSentAt != null -> "company · ${company?.lastSentAt?.substring(11, 16)} UTC"
+                    company?.lastSentAt != null -> "company · ${localTime(company?.lastSentAt)}"
                     else -> "company · soon"
                 }, 12)
             })
@@ -185,3 +185,9 @@ fun Settings(config: Config, demo: Boolean, model: Model, onSave: (Config) -> Un
         }
     }
 }
+
+/** ISO time from the helper (UTC) shown in the PC's local time, e.g. 01:23. */
+fun localTime(iso: String?): String = runCatching {
+    java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+}.getOrDefault("--")

@@ -1,7 +1,7 @@
 # Five-minute demo
 
 ## Before you go on stage
-1. Install `itor-1.0.0.msi` (or `cd apps/desktop; ./gradlew run -Pdemo` for the demo menu in Settings). For the manager view, also run `./scripts/dev.ps1` and open the Team page of the web console.
+1. Install `itor-1.0.1.msi` (or `cd apps/desktop; ./gradlew run -Pdemo` for the demo menu in Settings). For the manager view, also run `./scripts/dev.ps1` and open the Team page of the web console.
 2. Start Ollama with `qwen3.5:4b` (see README). Ask one question once so the model is warm.
 3. Set `GEMINI_API_KEY` in `.env` (free key from aistudio.google.com/apikey) to show the online AI.
 4. **Demo controls** → **Reset demo session**, then **Add a demo morning** (so the numbers are not empty).

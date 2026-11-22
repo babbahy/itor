@@ -26,7 +26,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
             packageName = "itor"
-            packageVersion = "1.0.0"
+            packageVersion = "1.0.1"
             description = "itor: working time and IT help, even offline"
             vendor = "itor"
             // Ship the whole Java runtime: avoids missing modules (HTTP client, TLS) in the installed app.
