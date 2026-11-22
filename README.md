@@ -1,67 +1,80 @@
+<img src="apps/desktop/icons/itor-256.png" width="56" alt="itor app icon">
+
 # itor
 
-**Count your time. When a tool steals it, get it back, even offline.**
+**A Windows worktime tracker with offline IT help.**
 
-itor is a hackathon prototype with two parts:
+A slow PC, frozen app, or lost connection can cost an employee part of their workday. itor records that lost time and gives the employee a place to get help. They can check their device, approve a supported fix, or send IT a ticket with the details. The manager view brings time summaries, outages, and tickets together so recurring problems are visible.
 
-1. **A time clock.** It counts active time, idle time and time lost because of tools (internet down, PC overloaded, frozen app, "I'm blocked"). The manager sees the same numbers on the company's own server to pay exact hours and rank the team. Nothing goes to Nexthink.
-2. **An offline helper.** When the network drops, a local AI (Qwen through Ollama) still guides the employee, proposes safe fixes that run only after Approve, and writes an outage log that is sent when the connection is back. With internet, Gemini (free tier) answers.
+[Download itor for Windows x64](https://github.com/babbahy/itor/releases/download/v1.0.16/itor-1.0.16.msi) · [Download the presenter panel](https://github.com/babbahy/itor/releases/download/v1.0.10/itor-demo-panel-1.0.0.msi) · [See the five-minute demo](#see-itor-in-five-minutes)
 
-See [PLAN.md](PLAN.md) for the plan and status, and [docs/PRIVACY.md](docs/PRIVACY.md) for what is measured.
+## Try it on Windows
 
-## Employee app (Windows installer)
+1. Run the MSI and open **itor** from the Start menu. The app starts its own helper and stays available in the Windows tray.
+2. Keep itor online on first launch. On a fresh setup it automatically downloads Ollama and Qwen 3.5 2B, about **4.3 GB** combined. Allow about **6 GB** of free disk space. Basic checks work during setup, and you can pause and resume the download.
+3. Open **Settings** and wait for **Offline AI ready**. Qwen then runs on the PC, including during an outage, without an API key. itor can also reuse an existing local Ollama running Qwen 3.5 2B or 4B.
 
-Employees use **itor for Windows** (`apps/desktop`, Kotlin + Compose). It is a normal app with a tray icon that starts with Windows and needs no admin rights. It starts its own helper (`itor-helper.exe`, the Python code in `services/agent` packed with PyInstaller).
+## See itor in five minutes
 
-Build the installer on Windows with JDK 17, WiX 3, and the `.venv` from `./scripts/setup.ps1`.
+Install the separate **itor demo panel** using the link above. In itor, enable **Show demo tools** and **Show manager view** in **Settings**, click **Save and restart helper**, then open **itor demo panel** from Start. Leave the company settings blank to use the laptop as the demo receiver.
+
+| On screen | What to show |
+| --- | --- |
+| **My day** | Click **Add a demo morning** in the panel to seed sample hours. Show active, idle, and time lost to tool problems. |
+| **Fix my problem** | Start **Stuck video export** in the panel. Once itor detects the workload, run the device check and click **Run** next to **Stop VideoExport**. Show the approval prompt, then click **Approve and run** and point to the verified result. |
+| **Offline help** | Click **Simulate outage**. Ask **“Why is my Wi-Fi offline?”** in **Fix my problem**. The completed answer’s `source: local-ai` label shows that Qwen answered on the laptop. |
+| **Ask IT → Team** | Send a sample ticket from the diagnosis, end the simulated outage, and find the message under **Team → Tickets for IT**. |
+
+The panel simulates the outage and seeds sample hours. **Stuck video export** starts a real, bounded test process. itor measures the workload and checks that it exited after the approved fix. Team can also show example coworkers alongside the local report. [Full presenter script](docs/DEMO.md#script)
+
+## How it works
+
+- **Employee app.** The Kotlin and Compose Desktop interface talks to a packaged Python helper on the same PC. The FastAPI helper reads CPU, memory, disk, and connection status, keeps the time clock, and stores records in SQLite.
+- **Diagnosis and fixes.** The helper uses measured findings to explain problems. Qwen runs locally through Ollama. Rules provide basic answers when the model is unavailable. Employees approve built-in fixes before the helper runs them, and the helper checks the result.
+- **Reporting.** itor saves daily summaries, outage logs, and tickets in a local queue. It sends them to the configured company receiver when reachable. The Next.js browser console reads the team and ticket data from that receiver.
+
+[Architecture](docs/ARCHITECTURE.md) · [Tests and offline verification](docs/TESTING.md)
+
+## Privacy and Nexthink
+
+The time clock uses recent mouse and keyboard activity to estimate worktime. Windows supplies input timing, and employees can review their daily totals in **My day**. Webcam presence and posture feedback are optional. MediaPipe runs on the PC, and camera frames are discarded after processing. The posture rules were adapted from Birdy. [Posture implementation](services/agent/posture.py)
+
+Company reporting shares time summaries, outage logs, and submitted tickets. The optional Gemini setting uses your own API key and sends the question and a limited diagnostic summary to Google for an online answer. [Privacy details](docs/PRIVACY.md)
+
+The hackathon build uses local device readings and itor’s own reporting. The provider interfaces give us a place to connect tenant-approved Nexthink NQL queries and Remote Actions. A Spark handoff would require a supported entry point and validation in an authorized tenant. [Nexthink integration notes](docs/NEXTHINK_INTEGRATION.md)
+
+## Build and run from source
+
+### Windows installers
+
+Use Windows x64, JDK 17, WiX 3, Python 3.11+, and Node.js 22.12+ with npm. Set `JAVA_HOME` to your JDK 17 folder if it is installed somewhere other than the build script’s default.
 
 ```powershell
-./scripts/build-desktop.ps1
+.\scripts\setup.ps1
+.\scripts\build-desktop.ps1
+.\scripts\build-demo-panel.ps1
 ```
 
-Output: `apps/desktop/build/compose/binaries/main/msi/itor-1.0.16.msi`.
+Look for `itor-1.0.16.msi` in `apps/desktop/build/compose/binaries/main/msi` and the presenter MSI in `apps/demo-panel/build/compose/binaries/main/msi`. Local app data is in `%LOCALAPPDATA%\itor-data`. Settings are stored in `%APPDATA%\itor\config.json`.
 
-Install the chosen MSI per user with `msiexec /i itor-1.0.16.msi /qn` from the folder containing it. Each employee can set a name and an optional Gemini key in **Settings**. Data lives in `%LOCALAPPDATA%\itor-data`, and settings live in `%APPDATA%\itor\config.json`.
+For Windows desktop development, run `.\gradlew.bat run -Pdemo` from `apps/desktop` after setup. The developer run uses the Python helper from `.venv`.
 
-**MSI built from this checkout with `build-desktop.ps1`.** Open itor while online to start automatic offline AI setup. On a fresh Windows x64 PC it downloads a verified standalone Ollama runtime and Qwen 3.5 2B, about 4.3 GB combined. Allow about 6 GB of free disk space. Basic checks use simple rules during setup, and you can pause, resume, or retry in the app. Once it says **Offline AI ready**, Qwen can answer without internet access or an API key.
+### Browser console
 
-itor manages its own local Ollama process and stores downloads under `%LOCALAPPDATA%\itor-data\offline-ai`. It can reuse an existing local Ollama serving Qwen 3.5 2B or 4B. Set `ITOR_OLLAMA_URL` or `ITOR_OLLAMA_MODEL` to select an existing runtime explicitly. [Standalone Ollama for Windows](https://docs.ollama.com/windows#standalone-cli)
-
-**Published v1.0.10 MSI.** To use offline AI with the release installer, install Ollama separately (`winget install Ollama.Ollama`) and run `ollama pull qwen3.5:4b`. itor uses simple rules until Ollama and the model are available.
-
-The separate **itor demo panel** (`apps/demo-panel`) gives presenters controls for stuck video export, memory leak, sync loop, network outage, and a demo morning. Build it with `./scripts/build-demo-panel.ps1`. With **Settings → Show demo tools** on, itor writes its local address and key to `%LOCALAPPDATA%\itor-data\demo-access.json`. The file is readable by your Windows account only, and itor deletes it on quit. The employee app is distributed separately.
-
-**Develop:** `cd apps/desktop; ./gradlew run` (add `-Pdemo` for the demo menu). In development the app runs the helper from `.venv`.
-
-The web app below is now the **manager / IT console** (Team ranking, tickets).
-
-## Run locally (web console)
-
-Use **Node.js 22.12+**, **npm**, and **Python 3.11+**. Installation downloads the project dependencies. The web app, agent, SQLite database, and bundled assets work on loopback once installed. Ollama is optional.
+Use Node.js 22.12+ with npm and Python 3.11+. From the repository root:
 
 ```bash
 ./scripts/setup.sh
 ./scripts/dev.sh
 ```
 
-Open [itor](http://127.0.0.1:3000). The launcher binds Next.js and the agent to loopback, generates a shared server-side key, and stops both processes on exit. To select a specific Python binary, run `ITOR_PYTHON=/path/to/python3.11 ./scripts/setup.sh`.
+On Windows PowerShell, use `.\scripts\setup.ps1` and `.\scripts\dev.ps1`. Open the address printed by the launcher, normally [http://127.0.0.1:3000](http://127.0.0.1:3000). The launcher runs the browser app and its helper on the local machine. To test the installed app sending to this separate console, set `ITOR_COMPANY_KEY` in the console’s `.env`, then set the same key and the receiver URL, normally `http://127.0.0.1:8765`, in itor’s company settings. [Example configuration](.env.example)
 
-On Windows, run `./scripts/setup.ps1` and `./scripts/dev.ps1` from PowerShell. Set `$env:ITOR_PYTHON` to select another Python executable.
+For a local production build, use `make build` and `make start`. On Windows, run `npm.cmd --prefix apps/web run build` and `.\scripts\dev.ps1 start`.
 
-For production mode on the same laptop:
+### Set up Ollama manually
 
-```bash
-make build
-make start
-```
-
-On Windows, set `$env:NEXT_TELEMETRY_DISABLED = '1'`, run `npm --prefix apps/web run build`, then run `./scripts/dev.ps1 start`. Copy [.env.example](.env.example) to `.env` to change ports, storage, the model, or the approved connectivity endpoint. An exact web origin is used for request protection, so open the URL printed by the launcher.
-
-## Set up Ollama manually
-
-Use these steps for the published Windows installer, the web console, or a desktop development run. For automatic setup, use a Windows MSI built from this checkout.
-
-Install a current version of [Ollama for your operating system](https://ollama.com/download). Start Ollama and download one local model while online. The model download is several gigabytes. [Qwen model sizes and variants](https://ollama.com/library/qwen3.5).
+For the browser console, desktop development, or an older employee MSI, start Ollama and download the default model while online.
 
 ```bash
 OLLAMA_NO_CLOUD=1 ollama serve
@@ -72,21 +85,11 @@ In a second terminal:
 ```bash
 ollama pull qwen3.5:4b
 ollama list
-curl -fsS http://127.0.0.1:11434/api/tags
 ```
 
-If Ollama already runs as a desktop app or service, enable its local-only setting and restart that instance. On Windows PowerShell set `$env:OLLAMA_NO_CLOUD = '1'` before running `ollama serve`. For a smaller model, pull `qwen3.5:2b`, set `ITOR_OLLAMA_MODEL=qwen3.5:2b` in `.env`, and restart itor. Settings and the header report the available model, while each diagnosis identifies its actual provider. [Ollama local-only configuration](https://docs.ollama.com/faq#how-do-i-disable-ollamas-cloud-features).
+On Windows PowerShell, set `$env:OLLAMA_NO_CLOUD = '1'` before running `ollama serve`. You can select a smaller downloaded model with `ITOR_OLLAMA_MODEL=qwen3.5:2b` and select the local server with `ITOR_OLLAMA_URL`. Restart itor after changing the configuration. [Ollama local-only setup](https://docs.ollama.com/faq#how-do-i-disable-ollamas-cloud-features)
 
-## Try the demo
-
-1. Open **My day**. In **Demo controls**, click **Add a demo morning** so the numbers are not empty. Try **I'm blocked**.
-2. In the demo controls, **Simulate cloud unavailability**. My day shows the offline helper: ask the local AI, run a quick fix (it needs Approve). Restore the adapter: the outage log is sent.
-3. Open **Team** to see the ranking and the time the team lost to tools.
-4. Optional: start the CPU workload, then **Fix this for me** and approve. itor checks the process exit and measures again.
-
-Use `make demo-ready` to check the running app, `make demo-reset` to restore the demo state, and `make smoke` to run the critical API flow through Next.js. Add `--cloud-outage` to `.venv/bin/python scripts/smoke-test.py flow` to exercise the simulated cloud outage. The full five-minute walkthrough and recovery steps are in [DEMO.md](docs/DEMO.md).
-
-## Development and documentation
+### Development checks
 
 ```bash
 make test
@@ -95,11 +98,4 @@ make typecheck
 make build
 ```
 
-- [Architecture and provider boundaries](docs/ARCHITECTURE.md)
-- [Privacy and data retention](docs/PRIVACY.md)
-- [Local security model](docs/SECURITY.md)
-- [Nexthink integration plan](docs/NEXTHINK_INTEGRATION.md)
-- [Tests and offline verification](docs/TESTING.md)
-- [Roadmap](docs/ROADMAP.md)
-
-If the agent is unavailable, use the printed local address and check the launcher output for a port conflict. If Ollama reports a missing model, verify the exact tag in `ollama list`. Internet reachability starts as unverified unless you configure an approved HTTPS endpoint. Interface data alone cannot prove internet works. Without that endpoint, real offline is detected when the network card is down; the demo outage button always works.
+Use `make demo-ready` to check the running browser demo and `make smoke` to exercise diagnosis and approval through the local API. [Testing guide](docs/TESTING.md) · [Project plan](PLAN.md) · [Roadmap](docs/ROADMAP.md) · [Security model](docs/SECURITY.md)
